@@ -38,6 +38,7 @@ export const history = {
       text: result.text.slice(0, MAX_TEXT), truncated: result.text.length > MAX_TEXT,
       label: result.label, confidence: result.confidence, probabilities: result.probabilities,
       keywords: (result.keywords || []).slice(0, 12), summary: result.summary, latency_ms: result.latency_ms,
+      warnings: result.warnings || [],
     };
     entries = [entry, ...entries].slice(0, MAX_ENTRIES);
     persist();

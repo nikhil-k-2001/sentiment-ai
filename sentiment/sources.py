@@ -20,6 +20,7 @@ no longer returns reviews.
 from __future__ import annotations
 
 import html
+import logging
 import re
 import threading
 import time
@@ -45,6 +46,7 @@ SOURCES: dict[str, dict] = {
 _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"\s+")
 _cache: dict[tuple, tuple[float, list[dict]]] = {}
+log = logging.getLogger("sentimentai.sources")
 _cache_lock = threading.Lock()
 
 
@@ -64,6 +66,14 @@ def _iso(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def safe_url(url: str | None) -> str | None:
+    """Only allow http(s) links; federated sources could otherwise send javascript: URLs."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+    return url if url.lower().startswith(("https://", "http://")) else None
 
 
 def _mentions_query(text: str, query: str) -> bool:
@@ -234,13 +244,19 @@ def _fetch_one(source: str, query: str, limit: int) -> tuple[str, list[dict] | N
         with httpx.Client(timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}, follow_redirects=True) as client:
             items = FETCHERS[source](client, query, limit)
     except SourceError as exc:
+        log.warning("source %s failed for %r: %s", source, query, exc)
         return source, None, str(exc), False
     except httpx.TimeoutException:
+        log.warning("source %s timed out for %r", source, query)
         return source, None, "timed out", False
     except httpx.HTTPError as exc:
+        log.warning("source %s network error for %r: %s", source, query, type(exc).__name__)
         return source, None, f"network error ({type(exc).__name__})", False
-    except (ValueError, KeyError, ET.ParseError):
+    except (ValueError, KeyError, TypeError, ET.ParseError) as exc:
+        log.warning("source %s returned an unexpected format for %r: %s", source, query, exc)
         return source, None, "unexpected response format", False
+    for m in items:
+        m["url"] = safe_url(m.get("url"))
     with _cache_lock:
         _cache[key] = (now, items)
     return source, items, None, False

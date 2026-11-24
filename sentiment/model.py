@@ -146,6 +146,41 @@ class SentimentModel:
         return keywords[:20]
 
 
+_EN_FUNCTION = frozenset("""
+the a an and or but is are was were be been am i you he she it we they this that these those to of in on for
+with my your our their not no very so at as have has had do does did can will would just from by about there
+what when how all if than then too also me him her them its it's i'm don't
+""".split())
+# Frequent function words of other common Latin-script languages (es, fr, de, pt, it, nl, id).
+_FOREIGN_FUNCTION = frozenset("""
+el la los las un una y o de del que en es por con para muy pero se lo su fue esta este como mas
+le les des et est une dans pour pas avec sur qui ce sont mais tres je vous nous
+der die das und ist nicht ein eine mit auf fur ich sie wir sehr aber zu von
+o os um uma e nao com para muito mas voce eu
+il che di per non sono molto ma con
+het een en niet van ik je zijn maar
+yang dan tidak ini itu saya dengan untuk
+""".split())
+
+
+def language_warning(text: str) -> str | None:
+    """Flag text that is probably not English (the model is English-only)."""
+    letters = [ch for ch in text if ch.isalpha()]
+    if not letters:
+        return None
+    latin = sum("a" <= ch.lower() <= "z" for ch in letters) / len(letters)
+    msg = ("This text doesn't appear to be in English. The model was trained on English text only, "
+           "so treat this prediction as unreliable.")
+    if latin < 0.6:
+        return msg
+    words = re.findall(r"[a-z']+", text.lower())
+    foreign = sum(w in _FOREIGN_FUNCTION and w not in _EN_FUNCTION for w in words)
+    english = sum(w in _EN_FUNCTION for w in words)
+    if foreign >= 2 and foreign > english:
+        return msg
+    return None
+
+
 def summarise(pred: Prediction, keywords: list[dict], text: str) -> str:
     """Plain-English, template-based explanation of a prediction."""
     ranked = sorted(pred.probabilities.items(), key=lambda kv: kv[1], reverse=True)
@@ -160,7 +195,7 @@ def summarise(pred: Prediction, keywords: list[dict], text: str) -> str:
 
     parts = [
         f"The model classifies this text as {top} with {strength} confidence "
-        f"({p1:.0%})."
+        f"({p1:.0%} estimated probability)."
     ]
     if margin < 0.15:
         parts.append(

@@ -26,16 +26,17 @@
       </a>
 
       <nav class="nav">
-        <p class="nav-label">Workspace</p>
-        <a href="#/dashboard" data-route="dashboard" class="nav-link"><i data-icon="dashboard"></i><span>Dashboard</span></a>
-        <a href="#/analyze" data-route="analyze" class="nav-link"><i data-icon="sparkles"></i><span>Sentiment Analyzer</span></a>
-        <a href="#/batch" data-route="batch" class="nav-link"><i data-icon="layers"></i><span>Batch Analysis</span></a>
-        <a href="#/analytics" data-route="analytics" class="nav-link"><i data-icon="chart"></i><span>Analytics</span></a>
-        <p class="nav-label">Listening</p>
-        <a href="#/monitor" data-route="monitor" class="nav-link"><i data-icon="radar"></i><span>Brand Monitor</span><span class="nav-badge">Live</span></a>
+        <a href="#/dashboard" data-route="dashboard" class="nav-link"><i data-icon="dashboard"></i><span>Overview</span></a>
+        <p class="nav-label">Brand reputation</p>
+        <a href="#/monitor" data-route="monitor" class="nav-link"><i data-icon="radar"></i><span>Brand Monitoring</span><span class="nav-badge">Live</span></a>
         <a href="#/compare" data-route="compare" class="nav-link"><i data-icon="scale"></i><span>Compare Brands</span></a>
-        <p class="nav-label">Model</p>
-        <a href="#/model" data-route="model" class="nav-link"><i data-icon="cpu"></i><span>About / Model Info</span></a>
+        <p class="nav-label">Feedback</p>
+        <a href="#/batch" data-route="batch" class="nav-link"><i data-icon="layers"></i><span>Customer Feedback</span></a>
+        <a href="#/employees" data-route="employees" class="nav-link"><i data-icon="users"></i><span>Employee Insights</span></a>
+        <a href="#/analyze" data-route="analyze" class="nav-link"><i data-icon="sparkles"></i><span>Text Analyzer</span></a>
+        <p class="nav-label">Workspace</p>
+        <a href="#/analytics" data-route="analytics" class="nav-link"><i data-icon="clock"></i><span>History &amp; Usage</span></a>
+        <a href="#/model" data-route="model" class="nav-link"><i data-icon="cpu"></i><span>About &amp; Methodology</span></a>
       </nav>
 
     </aside>
@@ -45,9 +46,9 @@
     <div class="main">
       <header class="topbar">
         <button class="icon-btn only-mobile" id="menu-btn" aria-label="Open navigation"><i data-icon="menu"></i></button>
-        <div class="crumbs"><span class="crumb-root">SentimentAI</span><i data-icon="chevron"></i><span id="crumb-page">Dashboard</span></div>
+        <div class="crumbs"><span class="crumb-root">SentimentAI</span><i data-icon="chevron"></i><span id="crumb-page">Overview</span></div>
         <div class="topbar-actions">
-          <a class="btn btn-ghost btn-sm hide-mobile" href="#/analyze"><i data-icon="plus"></i>New analysis</a>
+          <a class="btn btn-ghost btn-sm hide-mobile" href="#/analyze"><i data-icon="plus"></i>Analyze text</a>
           <button class="icon-btn" id="theme-btn" data-tip="Toggle dark mode" data-tip-pos="bottom" aria-label="Toggle dark mode"><i data-icon="moon" class="if-light"></i><i data-icon="sun" class="if-dark"></i></button>
         </div>
       </header>
@@ -62,40 +63,72 @@
       </div>
 
       <main class="content" id="content">
-        <!-- ---------- Dashboard ---------- -->
+        <!-- ---------- Overview ---------- -->
         <section class="view" data-view="dashboard" hidden>
           <div class="hero">
             <div class="hero-bg" aria-hidden="true"></div>
-            <span class="eyebrow" id="hero-eyebrow"><i data-icon="sparkles"></i><span>TF-IDF · Logistic Regression</span></span>
+            <span class="eyebrow" id="hero-eyebrow"><i data-icon="sparkles"></i><span>Own trained model · no external AI</span></span>
             <h1>Understand What People Feel.</h1>
-            <p class="lead">Paste a review, support ticket or social post and SentimentAI classifies it as
-              <b class="t-pos">positive</b>, <b class="t-neg">negative</b> or <b class="t-neu">neutral</b> — with calibrated
-              probabilities, the words that drove the decision, and analytics across everything you analyse.</p>
-            <a class="hero-cta" href="#/monitor"><span class="nav-badge">Live</span><span><b>Brand Monitor</b> — see what the internet feels about any brand right now</span><i data-icon="arrow"></i></a>
+            <p class="lead">SentimentAI reads public posts, customer feedback and employee reviews, tells you whether people feel
+              <b class="t-pos">positive</b>, <b class="t-neg">negative</b> or <b class="t-neu">neutral</b>, and shows what they keep
+              talking about — with every number linked back to the posts behind it.</p>
+            <form class="quick-check" id="quick-form" autocomplete="off">
+              <i data-icon="sparkles"></i>
+              <label for="quick-input" class="sr-only">Text for a quick sentiment check</label>
+              <input id="quick-input" maxlength="5000" placeholder="Paste a review or post for a quick sentiment check…" />
+              <button class="btn btn-primary" type="submit">Analyze</button>
+            </form>
           </div>
-          <div class="slot" data-slot="dashboard"></div>
 
-          <div class="section-head">
-            <div><h2>Your activity</h2><p>Stats from analyses saved in this browser — not model evaluation metrics.</p></div>
-            <a class="btn btn-ghost btn-sm" href="#/analytics">Open analytics<i data-icon="arrow"></i></a>
+          <div class="section-head"><div><h2>What would you like to find out?</h2><p>Pick a workflow. Each one can be tried with sample data first.</p></div></div>
+          <div class="workflows" id="workflows"></div>
+
+          <div id="dash-brands-wrap" hidden>
+            <div class="section-head"><div><h2>Your brands at a glance</h2><p>Latest check for each brand you track, saved in this browser.</p></div>
+              <a class="btn btn-ghost btn-sm" href="#/monitor">Open Brand Monitoring<i data-icon="arrow"></i></a></div>
+            <div class="card table-card"><div class="table-wrap"><table class="table" id="dash-brands">
+              <thead><tr><th>Brand</th><th>Public mentions</th><th>Net sentiment</th><th>Change since last check</th><th>Employee rating</th><th>Last checked</th></tr></thead>
+              <tbody></tbody></table></div></div>
           </div>
-          <div class="stat-grid" id="dash-stats"></div>
-          <div class="grid-2-1">
-            <div class="card">
-              <div class="card-head"><h3>Recent analyses</h3><a href="#/analytics" class="link-sm">View all</a></div>
-              <div id="dash-recent"></div>
+
+          <div id="dash-activity">
+            <div class="section-head">
+              <div><h2>Recent text analyses</h2><p>Single texts and feedback files you analysed — usage history, not model accuracy.</p></div>
+              <a class="btn btn-ghost btn-sm" href="#/analytics">History &amp; usage<i data-icon="arrow"></i></a>
             </div>
-            <div class="card">
-              <div class="card-head"><h3>Sentiment mix</h3><span class="muted-sm">All time</span></div>
-              <div id="dash-donut"></div>
+            <div class="grid-2-1">
+              <div class="card"><div class="card-head"><h3>Recent analyses</h3><a href="#/analytics" class="link-sm">View all</a></div><div id="dash-recent"></div></div>
+              <div class="card"><div class="card-head"><h3>Sentiment mix</h3><span class="muted-sm">All saved analyses</span></div><div id="dash-donut"></div></div>
             </div>
           </div>
+        </section>
+
+        <!-- ---------- Employee Insights ---------- -->
+        <section class="view" data-view="employees" hidden>
+          <div class="page-head">
+            <div><h1>Employee Insights</h1><p>Import employee reviews from Glassdoor, AmbitionBox or an internal survey to see what people value, what they complain about, and how they rate the company.</p></div>
+          </div>
+          <div class="card emp-bar">
+            <div class="emp-companies"><span class="muted-sm">Company:</span><div class="brand-chips" id="emp-companies"></div></div>
+            <form class="emp-add" id="emp-form" autocomplete="off">
+              <label for="emp-name" class="sr-only">Company name</label>
+              <input id="emp-name" maxlength="60" placeholder="Add a company, e.g. Infosys" />
+              <button class="btn btn-secondary btn-sm" type="submit"><i data-icon="plus"></i>Add</button>
+            </form>
+          </div>
+          <div class="card empty" id="emp-empty" hidden>
+            <div class="empty-art"><i data-icon="users"></i></div>
+            <h3>Add a company to start</h3>
+            <p>Type the company name above, then import its reviews as a CSV (Glassdoor or AmbitionBox format) or paste them as text. Pros and cons are analysed separately, and star ratings are compared with the model.</p>
+            <button class="btn btn-secondary btn-sm" id="emp-sample"><i data-icon="sparkles"></i>Try with sample reviews</button>
+          </div>
+          <div id="mon-reviews"></div>
         </section>
 
         <!-- ---------- Analyzer ---------- -->
         <section class="view" data-view="analyze" hidden>
           <div class="page-head">
-            <div><h1>Sentiment Analyzer</h1><p>Analyse a single piece of text and get a full model report.</p></div>
+            <div><h1>Text Analyzer</h1><p>Paste any text — a review, a post, an email — to see its sentiment, how confident the model is, and which words drove the result.</p></div>
           </div>
           <div class="analyze-layout">
             <div class="slot" data-slot="analyze"></div>
@@ -112,61 +145,58 @@
         <!-- ---------- Batch ---------- -->
         <section class="view" data-view="batch" hidden>
           <div class="page-head">
-            <div><h1>Batch Analysis</h1><p>Upload a CSV with a text column and classify every row at once (up to 5,000 rows, 4 MB).</p></div>
-            <a class="btn btn-ghost btn-sm" href="/static/samples/sample_reviews.csv" download><i data-icon="download"></i>Sample CSV</a>
+            <div><h1>Customer Feedback</h1><p>Find out what customers like and what they complain about. Upload a CSV of reviews, survey answers or support tickets — up to 5,000 rows, 4 MB.</p></div>
           </div>
 
-          <div class="card upload-card">
+          <div class="card upload-card" id="upload-card">
             <label class="dropzone" id="dropzone" for="file-input">
-              <input type="file" id="file-input" accept=".csv,text/csv" hidden />
+              <input type="file" id="file-input" accept=".csv,.tsv,.txt,text/csv" hidden />
               <span class="dz-icon"><i data-icon="upload"></i></span>
               <strong id="dz-title">Drop a CSV file here, or <u>browse</u></strong>
-              <small id="dz-sub">We detect the text column automatically (e.g. <code>text</code>, <code>review</code>, <code>comment</code>).</small>
+              <small id="dz-sub">Any CSV with a column of written feedback. You'll see a preview before anything is analysed.</small>
             </label>
-            <div class="upload-bar" id="upload-bar" hidden>
-              <div class="file-chip"><i data-icon="file"></i><div><strong id="file-name">file.csv</strong><small id="file-meta"></small></div>
-                <button class="icon-btn sm" id="file-remove" aria-label="Remove file" data-tip="Remove file"><i data-icon="x"></i></button></div>
-              <label class="field-inline" id="column-field" hidden>
-                <span>Text column</span>
-                <select id="column-select" aria-label="Text column"></select>
-              </label>
-              <label class="check" data-tip="Add results to your analytics and history"><input type="checkbox" id="batch-save" checked /><span>Save to history</span></label>
-              <button class="btn btn-primary" id="batch-run"><i data-icon="sparkles"></i><span>Analyze all</span></button>
-            </div>
+            <div class="upload-alt"><span class="muted-sm">No file handy?</span>
+              <button class="btn btn-ghost btn-xs" id="batch-sample"><i data-icon="sparkles"></i>Use sample feedback</button>
+              <a class="link-sm" href="/static/samples/sample_reviews.csv" download>Download sample CSV</a></div>
           </div>
 
+          <div class="card preview-card" id="batch-preview" hidden></div>
+
           <div id="batch-results" hidden>
+            <div class="results-head" id="batch-head"></div>
+            <div class="card insights" id="batch-findings"></div>
             <div class="stat-grid" id="batch-stats"></div>
-            <div class="card">
+            <div class="card" id="batch-table-card">
+              <div class="card-head"><h3>All feedback</h3><span class="muted-sm" id="batch-count"></span></div>
               <div class="dist-bar" id="batch-dist"></div>
               <div class="table-toolbar">
-                <div class="search-wrap"><i data-icon="search"></i><input id="batch-search" type="search" placeholder="Search analysed records…" aria-label="Search records" /></div>
-                <div class="chips" id="batch-filter" role="tablist" aria-label="Filter by sentiment"></div>
-                <button class="btn btn-secondary btn-sm" id="batch-download"><i data-icon="download"></i>Download CSV</button>
+                <div class="search-wrap"><i data-icon="search"></i><input id="batch-search" type="search" placeholder="Search feedback…" aria-label="Search feedback" /></div>
+                <div class="chips" id="batch-filter" role="group" aria-label="Filter by sentiment"></div>
+                <button class="btn btn-secondary btn-sm" id="batch-download"><i data-icon="download"></i>Export CSV</button>
               </div>
               <div class="table-wrap"><table class="table" id="batch-table">
-                <thead><tr><th class="num">#</th><th>Text</th><th>Sentiment</th><th class="conf-col">Confidence</th></tr></thead>
+                <thead><tr><th class="num">Row</th><th>Feedback</th><th>Sentiment</th><th class="conf-col">Confidence</th></tr></thead>
                 <tbody></tbody></table></div>
               <div class="pager" id="batch-pager"></div>
             </div>
           </div>
           <div class="empty card" id="batch-empty">
             <div class="empty-art"><i data-icon="layers"></i></div>
-            <h3>No batch results yet</h3>
-            <p>Upload a CSV above — or grab the sample file to see how it works.</p>
+            <h3>How it works</h3>
+            <ol class="steps-inline"><li><b>Upload</b> a CSV — we find the feedback column for you.</li><li><b>Check</b> the preview and pick a different column if needed.</li><li><b>Analyse</b> — see top complaints and praise first, then every row.</li></ol>
           </div>
         </section>
 
         <!-- ---------- Analytics ---------- -->
         <section class="view" data-view="analytics" hidden>
           <div class="page-head">
-            <div><h1>Analytics</h1><p>Live statistics from every analysis saved in this browser.</p></div>
+            <div><h1>History &amp; Usage</h1><p>Everything you've analysed with the Text Analyzer and Customer Feedback, saved in this browser.</p></div>
             <div class="row-gap">
               <button class="btn btn-ghost btn-sm" id="an-export"><i data-icon="download"></i>Export history</button>
               <button class="btn btn-danger-ghost btn-sm" id="an-clear"><i data-icon="trash"></i>Clear history</button>
             </div>
           </div>
-          <div class="notice"><i data-icon="info"></i><span><b>Usage statistics</b>, not model accuracy. These numbers describe <em>predictions made on your inputs</em>. Evaluation metrics from the held-out test set live on <a href="#/model">Model Info</a>.</span></div>
+          <div class="notice"><i data-icon="info"></i><span><b>Usage statistics</b>, not model accuracy. These numbers describe <em>predictions made on your inputs</em>. How accurate the model is, measured on held-out test data, is on <a href="#/model">About &amp; Methodology</a>.</span></div>
           <div class="stat-grid five" id="an-stats"></div>
           <div class="grid-1-2">
             <div class="card"><div class="card-head"><h3>Sentiment distribution</h3></div><div id="an-donut"></div></div>
@@ -192,7 +222,7 @@
         <!-- ---------- Brand Monitor ---------- -->
         <section class="view" data-view="monitor" hidden>
           <div class="page-head">
-            <div><h1>Brand Monitor</h1><p>Track what people are saying about any brand right now, across social media, forums and news.</p></div>
+            <div><h1>Brand Monitoring</h1><p>See how people feel about any brand right now: we collect recent public posts from social media, forums and news and score each one.</p></div>
           </div>
           <form class="card monitor-search" id="mon-form" autocomplete="off">
             <div class="mon-input">
@@ -211,13 +241,10 @@
             <h3>Start listening</h3>
             <p>Type a brand above. SentimentAI fetches recent public mentions from Bluesky, Mastodon, Lemmy, Hacker News and Google News, then scores each one with the sentiment model.</p>
             <div class="chips" id="mon-examples" style="justify-content:center;margin-top:8px"></div>
-            <div class="empty-or"><span>or</span></div>
-            <p>Analyse <b>employee reviews</b> from Glassdoor or AmbitionBox: track a company above and open its “Employee reviews” tab, or</p>
-            <button class="btn btn-secondary btn-sm" id="mon-load-samples"><i data-icon="users"></i>Load sample employee reviews</button>
+            <p class="muted-sm" style="margin-top:6px">Results are a sample of recent public posts, not every conversation on the internet.</p>
           </div>
           <div id="mon-head" hidden></div>
           <div id="mon-results" hidden></div>
-          <div id="mon-reviews" hidden></div>
         </section>
 
         <!-- ---------- Compare ---------- -->
@@ -260,7 +287,7 @@
           <label for="az-input" class="composer-title"><i data-icon="edit"></i>Text to analyse</label>
           <span class="kbd-hint hide-mobile"><kbd id="kbd-mod">Ctrl</kbd><kbd>Enter</kbd> to analyse</span>
         </div>
-        <textarea id="az-input" rows="5" maxlength="5000" placeholder="e.g. “The checkout was quick and the support team sorted my issue in minutes. Really impressed!”"></textarea>
+        <textarea id="az-input" rows="5" aria-describedby="az-count az-error" placeholder="e.g. “The checkout was quick and the support team sorted my issue in minutes. Really impressed!”"></textarea>
         <div class="composer-samples">
           <span class="muted-sm">Try a sample:</span>
           <div class="chips" id="az-samples"></div>
@@ -273,7 +300,7 @@
             <button class="btn btn-primary btn-lg" id="az-run"><i data-icon="sparkles"></i><span>Analyze sentiment</span></button>
           </div>
         </div>
-        <p class="field-error" id="az-error" hidden></p>
+        <p class="field-error" id="az-error" role="alert" hidden></p>
       </div>
       <div class="result-area" id="az-result"></div>
     </div>

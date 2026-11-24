@@ -3,46 +3,51 @@ export class ApiError extends Error {
   constructor(message, status, code) { super(message); this.status = status; this.code = code; }
 }
 
+// Track long-running requests so we can warn before the user closes the tab
+// and loses work that is still being processed.
+let inFlight = 0;
+addEventListener("beforeunload", (e) => { if (inFlight > 0) { e.preventDefault(); e.returnValue = ""; } });
+
 async function request(path, opts = {}) {
   let res;
+  inFlight++;
   try {
     res = await fetch(path, opts);
   } catch {
-    throw new ApiError("Can't reach the SentimentAI server. Is it still running?", 0, "offline");
+    throw new ApiError("Can't reach the SentimentAI server. Check your connection and try again.", 0, "offline");
+  } finally {
+    inFlight--;
   }
   let body = null;
   try { body = await res.json(); } catch { /* non-JSON */ }
   if (!res.ok) {
     let msg = body?.detail;
     if (Array.isArray(msg)) msg = msg.map((d) => d.msg).join("; ");
-    throw new ApiError(msg || `Request failed (${res.status})`, res.status, body?.code);
+    if (!msg) {
+      msg = res.status === 413 ? "That file is too large to upload (4 MB maximum)."
+        : res.status >= 500 ? "The server ran into a problem. Please try again in a moment."
+        : `Request failed (${res.status}).`;
+    }
+    throw new ApiError(msg, res.status, body?.code);
   }
   return body;
 }
 
+const json = (body) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const form = (fields) => {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) if (v != null && v !== "") fd.append(k, v);
+  return { method: "POST", body: fd };
+};
+
 export const api = {
   health: () => request("/api/health"),
   model: () => request("/api/model"),
-  analyze: (text) => request("/api/analyze", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
-  }),
+  analyze: (text) => request("/api/analyze", json({ text })),
   sources: () => request("/api/sources"),
-  monitor: (query, sources, limit = 50) => request("/api/monitor", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, sources, limit }),
-  }),
-  reviewsParse: (platform, { file, text }) => {
-    const fd = new FormData();
-    fd.append("platform", platform);
-    if (file) fd.append("file", file); else fd.append("text", text || "");
-    return request("/api/reviews/parse", { method: "POST", body: fd });
-  },
-  reviewsAnalyze: (reviews) => request("/api/reviews/analyze", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reviews }),
-  }),
-  batch: (file, column) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    if (column) fd.append("column", column);
-    return request("/api/batch", { method: "POST", body: fd });
-  },
+  monitor: (query, sources, limit = 50) => request("/api/monitor", json({ query, sources, limit })),
+  reviewsParse: (platform, { file, text }) => request("/api/reviews/parse", form(file ? { platform, file } : { platform, text: text || "" })),
+  reviewsAnalyze: (reviews) => request("/api/reviews/analyze", json({ reviews })),
+  batchPreview: (file) => request("/api/batch/preview", form({ file })),
+  batch: (file, column) => request("/api/batch", form({ file, column })),
 };

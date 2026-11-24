@@ -4,6 +4,7 @@
 import { api } from "./api.js";
 import { brands } from "./brands.js";
 import { periodBars, stackedRows } from "./charts.js";
+import { MODEL_METHOD, chips, downloadReport, fmtDay, quotes, sentimentBar } from "./report.js";
 import {
   $, COLORS, LABELS, SOFT, badge, cap, confirmDialog, debounce, download, esc, fmt, icon, pagerHTML, pct, stamp, timeAgo, toCSV, toast,
 } from "./utils.js";
@@ -151,7 +152,7 @@ export function renderReviewsTab(brand) {
       <div class="card-head"><h3>${icon("upload")} Import reviews</h3>
         ${has ? `<button class="btn btn-ghost btn-xs" data-rv="toggle">${ui.open ? "Hide" : "Import more"}</button>` : ""}</div>
       ${ui.open ? `
-      <p class="rv-note">${icon("shield")}<span>SentimentAI does not scrape review sites — Glassdoor and AmbitionBox terms forbid automated collection. Import reviews you have collected yourself as a CSV, or paste them below.</span></p>
+      <p class="rv-note">${icon("shield")}<span>SentimentAI never scrapes review sites (Glassdoor and AmbitionBox forbid it). Import reviews you collected yourself. <b>Privacy:</b> reviews are kept only in this browser; the server analyses the text in memory and doesn't store it. Leave out reviewer names or other personal details.</span></p>
       <div class="rv-row">
         <div class="seg" role="radiogroup" aria-label="Review platform">${Object.entries(PLATFORM_META).map(([k, m]) =>
           `<button class="seg-btn ${ui.platform === k ? "on" : ""}" data-platform="${k}" role="radio" aria-checked="${ui.platform === k}" style="--sc:${m.color}"><span class="src-dot"></span>${m.name}</button>`).join("")}</div>
@@ -181,20 +182,22 @@ export function renderReviewsTab(brand) {
 
 function insights(brand) {
   const s = brand.reviews.summary, out = [];
+  const src = s.themes.source === "pros_cons";
+  if (s.total < 10) out.push({ type: "alert", text: `Only ${s.total} review${s.total === 1 ? "" : "s"} imported — themes and percentages from so few reviews are indicative only.` });
   if (s.avg_rating != null) {
     const low = (s.rating_distribution["1"] + s.rating_distribution["2"]) / (s.rated || 1);
-    out.push({ type: s.avg_rating >= 3.5 ? "positive" : s.avg_rating < 3 ? "negative" : "info", text: `Average rating is ${s.avg_rating.toFixed(2)}★ across ${fmt(s.rated)} rated reviews; ${pct(low)} are 1–2★.` });
+    out.push({ type: s.avg_rating >= 3.5 ? "positive" : s.avg_rating < 3 ? "negative" : "info", text: `Average rating is ${s.avg_rating.toFixed(2)}★; ${pct(low)} of rated reviews give 1–2★.`, evidence: `${fmt(s.rated)} rated reviews`, filter: { sort: "lowest" } });
   }
   const tp = s.themes.positive[0], tn = s.themes.negative[0];
-  const src = s.themes.source === "pros_cons";
-  if (tp) out.push({ type: "positive", text: `Most praised: “${tp[0]}” — mentioned in ${tp[1]} ${src ? "pros / likes" : "positive reviews"}.` });
-  if (tn) out.push({ type: "negative", text: `Top complaint: “${tn[0]}” — mentioned in ${tn[1]} ${src ? "cons / dislikes" : "negative reviews"}.` });
-  const pf = Object.entries(s.by_platform).filter(([, v]) => v.avg_rating != null && v.total >= 5);
+  if (tn) out.push({ type: "negative", text: `Top complaint: “${tn[0]}”.`, evidence: `mentioned in ${tn[1]} ${src ? "cons / dislikes" : "negative reviews"}`, filter: { q: tn[0] } });
+  if (tp) out.push({ type: "positive", text: `Most praised: “${tp[0]}”.`, evidence: `mentioned in ${tp[1]} ${src ? "pros / likes" : "positive reviews"}`, filter: { q: tp[0] } });
+  const pf = Object.entries(s.by_platform).filter(([, v]) => v.avg_rating != null && v.rated >= 10);
   if (pf.length >= 2) {
     const [a, b] = [...pf].sort((x, y) => y[1].avg_rating - x[1].avg_rating);
-    out.push({ type: "info", text: `${a[1].name} reviewers rate higher than ${b[1].name} (${a[1].avg_rating.toFixed(2)}★ vs ${b[1].avg_rating.toFixed(2)}★).` });
+    if (a[1].avg_rating - b[1].avg_rating >= 0.05)
+      out.push({ type: "info", text: `${a[1].name} reviewers rate the company higher than ${b[1].name} reviewers (${a[1].avg_rating.toFixed(2)}★ vs ${b[1].avg_rating.toFixed(2)}★).`, evidence: `${a[1].rated} vs ${b[1].rated} rated reviews` });
   }
-  if (s.rating_agreement != null) out.push({ type: "info", text: `The model’s sentiment matches the reviewer’s own star rating in ${pct(s.rating_agreement)} of ${fmt(s.rated)} rated reviews.` });
+  if (s.rating_agreement != null) out.push({ type: "info", text: `The model's sentiment matches the reviewer's own star rating in ${pct(s.rating_agreement)} of rated reviews — disagreements are flagged with ⚠ in the list below.`, evidence: `${fmt(s.rated)} rated reviews` });
   return out;
 }
 
@@ -207,8 +210,9 @@ function resultsHTML(brand) {
       : `<p class="no-drivers">Not enough text to find recurring themes.</p>`}</div>`;
   const m = s.rating_matrix;
   return `
-    <div class="card insights"><div class="card-head"><h3>${icon("bell")} Review insights</h3><span class="muted-sm">rule-based, from the numbers below</span></div>
-      <ul>${insights(brand).map((a) => `<li class="ins ${a.type}"><span class="ins-ico">${icon(typeIcon[a.type])}</span><span>${esc(a.text)}</span></li>`).join("")}</ul></div>
+    <div class="card insights"><div class="card-head"><h3>${icon("bell")} What you should know</h3>
+      <div class="row-gap"><span class="muted-sm hide-mobile">automated, from these reviews</span><button class="btn btn-secondary btn-xs" data-rv="report" data-tip="Shareable HTML report (prints to PDF)">${icon("report")}Report</button></div></div>
+      <ul>${insights(brand).map((a, i) => `<li class="ins ${a.type}"><span class="ins-ico">${icon(typeIcon[a.type])}</span><span>${esc(a.text)}${a.evidence ? ` <span class="evidence">${esc(a.evidence)}</span>` : ""}${a.filter ? ` <button class="link-btn" data-rv-insight="${i}">View reviews →</button>` : ""}</span></li>`).join("")}</ul></div>
 
     <div class="stat-grid five">
       ${kpi("Reviews", fmt(s.total), `${Object.keys(s.by_platform).length} platform${Object.keys(s.by_platform).length === 1 ? "" : "s"}`, "users")}
@@ -317,6 +321,32 @@ function reviewCard(r) {
   </article>`;
 }
 
+function exportReport(b) {
+  const s = b.reviews.summary, n = s.total || 1, items = b.reviews.items;
+  const dates = items.map((r) => Date.parse(r.date)).filter(Number.isFinite);
+  const ex = (pred, k, field) => items.filter(pred).slice(0, k).map((r) => ({ text: r[field] || r.text || r.title, meta: `${PLATFORM_META[r.platform]?.name || r.platform}${r.rating != null ? ` · ${r.rating}★` : ""}${r.role ? ` · ${r.role}` : ""}${r.date ? ` · ${fmtDay(r.date)}` : ""}` }));
+  downloadReport(`${b.query} employee`, {
+    title: `Employee insights: ${b.query}`,
+    subtitle: "What employees value and what they complain about",
+    meta: [["Data source", b.reviews.imports.map((i) => `${PLATFORM_META[i.platform].name}: ${i.name} (${i.count})`).join("; ")], ["Reviews analysed", fmt(s.total)], ["Review dates", dates.length ? `${fmtDay(Math.min(...dates))} – ${fmtDay(Math.max(...dates))}` : "not provided"]],
+    kpis: [{ label: "Reviews", value: fmt(s.total) }, { label: "Average rating", value: s.avg_rating != null ? `${s.avg_rating.toFixed(2)}★` : "–", sub: `${fmt(s.rated)} rated` },
+      { label: "Net sentiment", value: `${s.net_score > 0 ? "+" : ""}${s.net_score}` }, { label: "Negative reviews", value: pct(s.counts.negative / n) }],
+    sections: [
+      { title: "Overall sentiment", html: sentimentBar(s.counts) },
+      { title: "What you should know", html: `<ul>${insights(b).map((a) => `<li>${esc(a.text)}${a.evidence ? ` <span class="sub">(${esc(a.evidence)})</span>` : ""}</li>`).join("")}</ul>` },
+      { title: "What employees like", html: chips(s.themes.positive, "pos") },
+      { title: "What employees dislike", html: chips(s.themes.negative, "neg") },
+      { title: "Rating distribution", html: `<table><tr><th>Rating</th><th>Reviews</th></tr>${[5, 4, 3, 2, 1].map((r) => `<tr><td>${r}★</td><td>${s.rating_distribution[r]}</td></tr>`).join("")}</table>` },
+      { title: "Representative complaints", html: quotes(ex((r) => r.cons && r.cons_label === "negative", 5, "cons")) },
+      { title: "Representative praise", html: quotes(ex((r) => r.pros && r.pros_label === "positive", 3, "pros")) },
+    ],
+    methodology: ["Reviews were imported by the user (CSV or pasted text); SentimentAI does not collect them from review sites.", MODEL_METHOD,
+      "Pros and cons are analysed separately; themes are the most frequent words and two-word phrases in each.", `Star ratings are mapped as 1–2★ negative, 3★ neutral, 4–5★ positive; the model agrees with them on ${s.rating_agreement != null ? pct(s.rating_agreement) : "n/a"} of rated reviews.`],
+    limitations: ["Imported reviews are a sample and may not represent all employees.", "Review sites attract more extreme opinions than typical employees hold.", "The model can misread short or sarcastic text."],
+  });
+  toast("Report downloaded", { body: "Open it in a browser; print to save as PDF." });
+}
+
 function exportCSV(b) {
   const list = rows();
   const csv = toCSV(["platform", "date", "role", "location", "rating", "title", "text", "pros", "cons", "sentiment", "confidence", "pros_sentiment", "cons_sentiment", "rating_sentiment"],
@@ -336,6 +366,14 @@ function onClick(e) {
   if (t("#rv-import")) return doImport(b);
   if ((el = t("[data-remove-import]"))) return removeImport(b, el.dataset.removeImport);
   if (t("[data-rv='export']")) return exportCSV(b);
+  if (t("[data-rv='report']")) return exportReport(b);
+  if ((el = t("[data-rv-insight]"))) {
+    const f = insights(b)[+el.dataset.rvInsight]?.filter || {};
+    feed = { filter: "all", platform: "all", rating: f.rating || "all", sort: f.sort || "newest", q: (f.q || "").toLowerCase(), page: 1 };
+    renderReviewsTab(b);
+    $("#rv-search", root).value = f.q || "";
+    return $("#rv-feed-card", root).scrollIntoView({ behavior: "smooth" });
+  }
   if ((el = t("[data-rv-filter]"))) { feed.filter = el.dataset.rvFilter; feed.page = 1; return renderFeed(); }
   if ((el = t("[data-rv-word]"))) {
     feed = { ...feed, q: el.dataset.rvWord, filter: "all", page: 1 };

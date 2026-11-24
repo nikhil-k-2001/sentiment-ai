@@ -11,7 +11,7 @@ media, forums and news.
 
 ### 🔗 Live demo: **[sentiment-ai-eight-orcin.vercel.app](https://sentiment-ai-eight-orcin.vercel.app)**
 
-![Brand Monitor](docs/screenshots/brand-monitor.jpg)
+![Overview](docs/screenshots/dashboard.jpg)
 
 </div>
 
@@ -19,16 +19,27 @@ media, forums and news.
 
 ## Highlights
 
-### Brand Monitor (social listening)
+### Built around what people want to find out
+The **Overview** starts from questions, not features. It offers four workflows (monitor a brand, analyse customer feedback, compare competitors, understand employee reviews), each with a one-click sample. A quick text check and a "brands at a glance" table round it out: latest net sentiment, change since the last check, and employee rating.
+
+Every workflow leads with plain-English findings. Each finding shows its **evidence**, meaning the sample size behind it, and links to the posts or rows that support it. Every workflow exports a **shareable HTML report** that prints to PDF, with data source, period, sample size, findings, representative quotes, methodology and limitations.
+
+### Customer Feedback (CSV)
+- Upload a file and **preview it before analysis**: the detected feedback column (you can change it), sample rows, and how many rows will be analysed or skipped.
+- Handles real-world files: UTF-8, UTF-16 and Latin-1; comma, semicolon, tab or pipe delimiters; unquoted commas in one-column files; files over the row limit.
+- Results lead with **Key findings**, **Top complaints** and **What customers like**. These are words and phrases over-represented in negative or positive rows. Clicking one shows those rows.
+
+### Brand Monitoring (social listening)
 - **Live mentions from 5 sources:** Bluesky, Mastodon, Lemmy, Hacker News and Google News. No API keys are needed, and the sources are fetched in parallel in about 2–5 s.
 - **Per-brand dashboard.** It shows the mention count and an estimated mentions per day, a **net sentiment** score from −100 to +100, positive and negative share, and engagement. It also breaks sentiment down by source, plots mention volume over time, and lists the words that stand out in positive vs negative mentions.
+- A clear sample-coverage note (sources, date range, posts excluded as spam), and **small-sample protection**: under 15 mentions the app shows a caution instead of confident-sounding insights.
 - **Alerts and insights.** These are transparent, rule-based findings computed from the data on screen: a negative spike in the last 24 h, the most critical source, a recurring complaint word, and a high-engagement negative post worth reviewing. You also get **change alerts between checks**, e.g. "negative share jumped from 20% to 41% since your last check".
 - **Mention feed.** You can filter by sentiment and source, search, and sort by newest, most engagement, most negative or most positive. Every mention links to the original. **Explain prediction** opens it in the Analyzer with word highlights, and you can export everything as CSV.
 - **Spam control.** Each account is capped at 3 mentions per source, so bots and auto-posters can't skew the numbers. The UI shows how many posts were filtered.
 - **Compare Brands.** Put up to three competitors side by side: **share of voice**, net sentiment, sentiment mix, and the word that drives each brand's complaints.
 - Tracked brands and their run history persist in the browser.
 
-### Employee reviews (Glassdoor · AmbitionBox · any CSV)
+### Employee Insights (Glassdoor · AmbitionBox · any CSV)
 - **Import reviews** for a brand from a CSV file or pasted text. Columns are detected automatically: Pros/Likes, Cons/Dislikes, Review, Title, Rating (`4`, `4.5`, `8/10`, `★★★★`), Date, Job title/Designation, Location.
 - **What people like vs dislike.** Pros and cons are analysed separately, and recurring themes are extracted as words and two-word phrases ("work-life balance", "salary hikes", "slow promotions").
 - **Rating analysis:** average rating, the 1–5★ distribution, a per-platform comparison, and reviews per week or month.
@@ -43,7 +54,10 @@ media, forums and news.
 - **Analysis report** with a confidence gauge, class probabilities, key drivers and a plain-English summary. You can copy it or download it as Markdown.
 - **Batch CSV analysis** with automatic text-column detection, search, filters and CSV export.
 - **Analytics dashboard** with distribution, trend, confidence charts and history (kept in `localStorage`).
-- **Product polish:** light and dark themes, responsive layout down to mobile, toasts, tooltips, skeleton loaders, empty states and keyboard shortcuts.
+- **Text Analyzer** warns when text probably isn't English, or is too short to judge, and explains that confidence is an estimated probability, not a guarantee.
+- **Product polish:** light and dark themes; responsive from 320 px to 1920 px; toasts, tooltips, skeleton loaders, empty states with next steps, retry buttons on failures, and a warning before you close a tab mid-analysis.
+- **Accessibility:** WCAG-AA text contrast, keyboard access to every control (including chips and table rows), focus moves to the page heading on navigation, ARIA labels and reduced-motion support.
+- **Privacy:** no accounts or database. History and imports stay in your browser, there's a one-click "clear all local data", and the server processes text in memory only.
 
 ## Quick start
 
@@ -153,15 +167,15 @@ The selection metric is **macro F1**. Only logistic regression is eligible for d
 
 ## Screenshots
 
-| Brand Monitor | Compare Brands |
+| Brand Monitoring | Customer Feedback |
 |---|---|
-| ![Monitor stats](docs/screenshots/brand-monitor-stats.jpg) | ![Compare](docs/screenshots/compare.jpg) |
-| **Employee reviews** | **Model check vs star ratings** |
-| ![Employee reviews](docs/screenshots/employee-reviews.jpg) | ![Model check](docs/screenshots/employee-reviews-check.jpg) |
-| **Analysis report** | **Batch analysis** |
-| ![Report](docs/screenshots/report.jpg) | ![Batch](docs/screenshots/batch.jpg) |
-| **Analytics** | **Model information** |
-| ![Analytics](docs/screenshots/analytics.jpg) | ![Model](docs/screenshots/model.jpg) |
+| ![Brand Monitoring](docs/screenshots/brand-monitor-stats.jpg) | ![Customer Feedback](docs/screenshots/customer-feedback.jpg) |
+| **Compare Brands** | **Employee Insights** |
+| ![Compare](docs/screenshots/compare.jpg) | ![Employee reviews](docs/screenshots/employee-reviews.jpg) |
+| **Model check vs star ratings** | **Text Analyzer report** |
+| ![Model check](docs/screenshots/employee-reviews-check.jpg) | ![Report](docs/screenshots/report.jpg) |
+| **About & Methodology** | **Dark mode** |
+| ![Model](docs/screenshots/model.jpg) | ![Dark](docs/screenshots/dark-mode.jpg) |
 
 ## Project structure
 
@@ -177,6 +191,8 @@ The selection metric is **macro F1**. Only logistic regression is eligible for d
 │   ├── sources.py            # live mention fetchers (Bluesky, Mastodon, Lemmy, HN, News) + cache
 │   ├── monitor.py            # brand analysis: scoring, spam cap, keywords, rates, insights
 │   ├── reviews.py            # review import: CSV/paste parsing, pros/cons themes, rating agreement
+│   ├── tabular.py            # robust CSV reading (encodings, delimiters, malformed rows)
+│   ├── themes.py             # distinctive words/phrases for complaints and praise
 │   └── api.py                # FastAPI: /api/* + serves the web UI
 ├── models/
 │   ├── sentiment_model.joblib
@@ -197,7 +213,8 @@ The selection metric is **macro F1**. Only logistic regression is eligible for d
 | `GET` | `/api/health` | `{status, model_ready}` |
 | `GET` | `/api/model` | Contents of `metrics.json` |
 | `POST` | `/api/analyze` | `{"text": "..."}` returns label, confidence, probabilities, keywords, summary |
-| `POST` | `/api/batch` | multipart `file` (CSV ≤ 4 MB, ≤ 5,000 rows) plus optional `column` |
+| `POST` | `/api/batch/preview` | multipart `file` returns every column with text counts and samples, plus the detected feedback column |
+| `POST` | `/api/batch` | multipart `file` (CSV ≤ 4 MB, ≤ 5,000 rows) plus optional `column`; returns per-row predictions, a summary and complaint/praise themes |
 | `GET` | `/api/sources` | Available live sources |
 | `POST` | `/api/monitor` | `{"query": "Spotify", "sources": [...], "limit": 50}` returns scored mentions, summary and insights |
 | `POST` | `/api/reviews/parse` | multipart `platform` (`glassdoor` / `ambitionbox` / `other`) plus a `file` (CSV) or `text` (pasted); returns normalised reviews and the detected column mapping |
@@ -231,7 +248,7 @@ curl -s localhost:8000/api/monitor -H 'Content-Type: application/json' \
 .venv/bin/python -m pytest -q
 ```
 
-46 tests cover preprocessing, predictions, explanations, input validation, batch CSV handling, the monitor pipeline (spam cap, net-score maths, keyword extraction, failures and 502s), the source parsers, and review import (column detection for both formats, pasted text, rating parsing, agreement maths, themes). Network calls are mocked, so the suite runs offline.
+74 tests cover preprocessing, predictions, explanations, input validation, batch CSV handling, the monitor pipeline (spam cap, net-score maths, keyword extraction, failures and 502s), the source parsers, review import (column detection for both formats, pasted text, rating parsing, agreement maths, themes), CSV robustness (encodings, delimiters, malformed rows), feedback previews and themes, non-English warnings, small-sample handling, link sanitisation, and error responses that never leak stack traces. Network calls are mocked, so the suite runs offline.
 
 ## Configuration
 

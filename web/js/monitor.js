@@ -1,9 +1,9 @@
 // Brand Monitor view: track a brand across live sources and see what people feel.
 import { BRAND_COLORS, SOURCE_META, brands, runAlerts } from "./brands.js";
 import { stackedRows, trend } from "./charts.js";
-import { initReviews, loadSamples, renderReviewsTab, resetReviewFeed } from "./reviews.js";
+import { MODEL_METHOD, chips, downloadReport, fmtDate, fmtDay, quotes, sentimentBar } from "./report.js";
 import {
-  $, COLORS, LABELS, SOFT, badge, cap, confirmDialog, debounce, download, esc, fmt, icon, pagerHTML, pct, stamp, timeAgo, toCSV, toast,
+  $, COLORS, LABELS, SOFT, badge, cap, confirmDialog, debounce, download, esc, fmt, icon, pagerHTML, pct, safeUrl, stamp, timeAgo, toCSV, toast,
 } from "./utils.js";
 
 const PER_PAGE = 20;
@@ -16,20 +16,12 @@ let busy = false;
 let feed = { filter: "all", source: "all", sort: "newest", q: "", page: 1 };
 let onAnalyze = () => {};
 let ready = true;
-let tab = "mentions";
 
 export function setMonitorReady(ok) { ready = ok; $("#mon-run").disabled = !ok || busy; }
 
 export function initMonitor({ analyze }) {
   onAnalyze = analyze;
-  initReviews($("#mon-reviews"), { analyze });
   $("#mon-head").addEventListener("click", onResultsClick);
-  $("#mon-load-samples").addEventListener("click", async (e) => {
-    const btn = e.currentTarget; btn.disabled = true;
-    try { await loadSamples(); tab = "reviews"; resetReviewFeed(); render(); toast("Sample reviews loaded", { body: "40 synthetic Glassdoor & AmbitionBox reviews for a fictional company." }); }
-    catch (err) { toast("Couldn't load samples", { type: "error", body: err.message }); }
-    finally { btn.disabled = false; }
-  });
   renderSourceChips();
   $("#mon-examples").innerHTML = EXAMPLES.map((e) => `<button class="chip" data-example="${e}">${e}</button>`).join("");
 
@@ -56,7 +48,7 @@ export function initMonitor({ analyze }) {
       return;
     }
     const chip = e.target.closest("[data-brand]");
-    if (chip) { feed = { ...feed, page: 1 }; resetReviewFeed(); brands.setActive(chip.dataset.brand); }
+    if (chip) { feed = { filter: "all", source: "all", sort: "newest", q: "", page: 1 }; brands.setActive(chip.dataset.brand); }
   });
   $("#mon-results").addEventListener("click", onResultsClick);
   $("#mon-results").addEventListener("input", debounce((e) => {
@@ -98,7 +90,14 @@ export async function run(query, sources) {
     $("#mon-query").value = "";
   } catch (err) {
     toast("Couldn't monitor that brand", { type: "error", body: err.message, ms: 6000 });
-    render();
+    const prev = brands.get(query.toLowerCase());
+    if (prev?.last) render();
+    else {
+      $("#mon-head").hidden = true;
+      $("#mon-results").hidden = false;
+      $("#mon-results").innerHTML = `<div class="card err-state">${icon("alert")}<div><h3>Couldn't collect mentions for “${esc(query)}”</h3><p>${esc(err.message)}</p>
+        <div class="row-gap"><button class="btn btn-secondary btn-sm" data-retry="${esc(query)}">${icon("refresh")}Try again</button></div></div></div>`;
+    }
   } finally {
     busy = false;
     btn.disabled = !ready; btn.innerHTML = `${icon("radar")}<span>Track brand</span>`;
@@ -113,42 +112,34 @@ export function render() {
       <span>${esc(x.query)}</span><button class="bc-x" data-remove="${x.key}" aria-label="Stop tracking ${esc(x.query)}" data-tip="Stop tracking">${icon("x")}</button></div>`).join("");
   $("#mon-brands-wrap").hidden = !all.length;
   $("#mon-empty").hidden = !!b;
-  if (!b) { ["#mon-head", "#mon-results", "#mon-reviews"].forEach((id) => ($(id).hidden = true)); return; }
+  if (!b) { ["#mon-head", "#mon-results"].forEach((id) => ($(id).hidden = true)); return; }
   renderHead(b);
-  $("#mon-results").hidden = tab !== "mentions";
-  $("#mon-reviews").hidden = tab !== "reviews";
-  if (tab === "mentions") renderResults(b); else renderReviewsTab(b);
+  $("#mon-results").hidden = false;
+  renderResults(b);
 }
 
 function renderHead(b) {
   const r = b.last, nRev = b.reviews?.items?.length || 0;
   const okCount = r ? r.sources.filter((x) => x.ok && x.count).length : 0;
-  const sub = tab === "reviews"
-    ? (nRev ? `${fmt(nRev)} imported reviews · ${b.reviews.imports.length} import${b.reviews.imports.length === 1 ? "" : "s"}` : "No reviews imported yet")
-    : (r ? `Updated ${timeAgo(new Date(r.fetched_at).getTime())} · ${fmt(r.summary.total)} mentions from ${okCount} source${okCount === 1 ? "" : "s"} · ${b.runs.length} check${b.runs.length === 1 ? "" : "s"} so far` : "Public mentions not checked yet");
+  const sub = r ? `Checked ${timeAgo(new Date(r.fetched_at).getTime())} · ${fmt(r.summary.total)} public mentions from ${okCount} source${okCount === 1 ? "" : "s"} · ${b.runs.length} check${b.runs.length === 1 ? "" : "s"} so far` : "Public mentions not checked yet";
   $("#mon-head").hidden = false;
   $("#mon-head").innerHTML = `<div class="mon-head">
-    <div><h2>${esc(b.query)}</h2><p class="muted-sm">${sub}</p></div>
-    ${tab === "mentions" ? `<div class="row-gap">
-      <button class="btn btn-ghost btn-sm" data-act="export" ${r?.summary.total ? "" : "disabled"}>${icon("download")}Export CSV</button>
-      <button class="btn btn-secondary btn-sm" data-act="refresh" data-tip="Fetch the latest mentions again">${icon("refresh")}${r ? "Refresh" : "Check now"}</button></div>` : ""}
-  </div>
-  <div class="tabs" role="tablist">
-    <button class="tab ${tab === "mentions" ? "on" : ""}" data-tab="mentions" role="tab" aria-selected="${tab === "mentions"}">${icon("globe")}Public mentions${r ? `<span class="chip-count">${fmt(r.summary.total)}</span>` : ""}</button>
-    <button class="tab ${tab === "reviews" ? "on" : ""}" data-tab="reviews" role="tab" aria-selected="${tab === "reviews"}">${icon("users")}Employee reviews${nRev ? `<span class="chip-count">${fmt(nRev)}</span>` : ""}</button>
+    <div><h2>${esc(b.query)}</h2><p class="muted-sm">${sub}${nRev ? ` · <a href="#/employees">${fmt(nRev)} employee reviews →</a>` : ""}</p></div>
+    <div class="row-gap">
+      <button class="btn btn-ghost btn-sm" data-act="export" ${r?.summary.total ? "" : "disabled"} data-tip="All mentions as a spreadsheet">${icon("download")}CSV</button>
+      <button class="btn btn-ghost btn-sm" data-act="report" ${r?.summary.total ? "" : "disabled"} data-tip="Shareable HTML report (prints to PDF)">${icon("report")}Report</button>
+      <button class="btn btn-secondary btn-sm" data-act="refresh" data-tip="Collect the latest mentions again">${icon("refresh")}${r ? "Check again" : "Check now"}</button></div>
   </div>`;
 }
 
 function renderLoading(query, srcs) {
-  tab = "mentions";
   $("#mon-empty").hidden = true;
   $("#mon-head").hidden = true;
-  $("#mon-reviews").hidden = true;
   $("#mon-results").hidden = false;
   $("#mon-results").innerHTML = `<div class="card listen-card">
     <div class="listen-radar">${icon("radar")}</div>
     <h3>Listening for “${esc(query)}”…</h3>
-    <p class="muted-sm">Fetching recent public mentions and running each one through the sentiment model.</p>
+    <p class="muted-sm">Collecting recent public posts from ${srcs.length} sources, then scoring each one with the model. This usually takes 2–6 seconds.</p>
     <div class="listen-sources">${srcs.map((k) => `<span class="chip src-chip on" style="--sc:${SOURCE_META[k].color}"><span class="spinner xs"></span>${SOURCE_META[k].name}</span>`).join("")}</div></div>`;
 }
 
@@ -166,6 +157,10 @@ function renderResults(b) {
   }
   const r = b.last, s = r.summary, n = s.total || 1;
   const alerts = [...runAlerts(b), ...s.insights];
+  b.__alerts = alerts;
+  const prev = b.runs.length >= 2 ? b.runs.at(-2) : null;
+  const delta = prev && prev.total >= 20 && s.total >= 20 ? s.net_score - prev.net : null;
+  const okNames = r.sources.filter((x) => x.ok && x.count).map((x) => x.name);
   const okSources = r.sources.filter((x) => x.ok);
   const netCls = s.net_score > 0 ? "t-pos" : s.net_score < 0 ? "t-neg" : "";
   const typeIcon = { alert: "bell", negative: "frown", positive: "smile", info: "info" };
@@ -174,15 +169,17 @@ function renderResults(b) {
   ${!s.total ? `<div class="card empty"><div class="empty-art">${icon("search")}</div><h3>No mentions found</h3>
     <p>None of the selected sources returned recent posts that mention “${esc(b.query)}”. Try a more widely discussed name, a different spelling, or enable more sources.</p></div>` : `
 
-  ${alerts.length ? `<div class="card insights"><div class="card-head"><h3>${icon("bell")} Alerts & insights</h3><span class="muted-sm">rule-based, from the numbers below</span></div>
-    <ul>${alerts.map((a) => `<li class="ins ${a.type}"><span class="ins-ico">${icon(typeIcon[a.type] || "info")}</span><span>${esc(a.text)}${a.mention_id ? ` <button class="link-btn" data-show="${esc(a.mention_id)}">Show</button>` : ""}</span></li>`).join("")}</ul></div>` : ""}
+  <p class="coverage">${icon("info")}<span>A <b>sample</b> of the ${fmt(s.total)} most recent public posts mentioning “${esc(b.query)}” on ${esc(okNames.join(", ") || "the selected sources")}${s.period?.from ? `, ${fmtDay(s.period.from)} – ${fmtDay(s.period.to)}` : ""} — not every conversation online.${s.filtered_repetitive ? ` ${fmt(s.filtered_repetitive)} repetitive posts from the same accounts were left out.` : ""}</span></p>
 
   <div class="stat-grid five">
-    ${kpi("Mentions", fmt(s.total), s.mentions_per_day != null ? `≈ ${fmt(Math.round(s.mentions_per_day))} / day across sources` : "", "globe", "", "Mentions per day is estimated from the time span the fetched mentions cover in each source.")}
-    ${kpi("Net sentiment", `<span class="${netCls}">${s.net_score > 0 ? "+" : ""}${s.net_score}</span>`, "% positive − % negative", "scale", "", "Ranges from −100 (all negative) to +100 (all positive).")}
-    ${LABELS.filter((l) => l !== "neutral").map((l) => kpi(cap(l), fmt(s.counts[l]), `${pct(s.counts[l] / n, 1)} of mentions`, l === "positive" ? "smile" : "frown", `--c:${COLORS[l]};--soft:${SOFT[l]}`)).join("")}
-    ${kpi("Engagement", fmt(s.engagement), "likes, reposts, replies & points", "heart")}
+    ${kpi("Mentions analysed", fmt(s.total), s.mentions_per_day != null ? `≈ ${fmt(Math.round(s.mentions_per_day))} / day (estimate)` : "", "globe", "", "Estimated rate: mentions fetched from each source ÷ the time span they cover, summed over sources.")}
+    ${kpi("Net sentiment", `<span class="${netCls}">${s.net_score > 0 ? "+" : ""}${s.net_score}</span>`, delta != null ? `<span class="${delta > 0 ? "t-pos" : delta < 0 ? "t-neg" : ""}">${delta > 0 ? "▲ +" : delta < 0 ? "▼ " : "± "}${delta}</span> since last check` : "% positive − % negative", "scale", "", "From −100 (all negative) to +100 (all positive): the share of positive mentions minus the share of negative ones.")}
+    ${LABELS.map((l) => kpi(cap(l), pct(s.counts[l] / n), `${fmt(s.counts[l])} mentions`, { positive: "smile", negative: "frown", neutral: "meh" }[l], `--c:${COLORS[l]};--soft:${SOFT[l]}`)).join("")}
   </div>
+
+  ${alerts.length ? `<div class="card insights"><div class="card-head"><h3>${icon("bell")} What you should know</h3><span class="muted-sm" data-tip="Automated, rule-based findings computed from the mentions on this page. They describe patterns, not causes.">automated, from these mentions ${icon("info")}</span></div>
+    <ul>${alerts.map((a, i) => `<li class="ins ${a.type}"><span class="ins-ico">${icon(typeIcon[a.type] || "info")}</span><span>${esc(a.text)}${a.evidence ? ` <span class="evidence">${esc(a.evidence)}</span>` : ""}
+      ${a.mention_id ? ` <button class="link-btn" data-show="${esc(a.mention_id)}">View post →</button>` : a.filter && Object.keys(a.filter).length ? ` <button class="link-btn" data-insight="${i}">View mentions →</button>` : ""}</span></li>`).join("")}</ul></div>` : ""}
 
   <div class="grid-1-2">
     <div class="card"><div class="card-head"><h3>Sentiment by source</h3><span class="muted-sm">${fmt(s.counts.neutral)} neutral overall</span></div><div id="mon-sources-chart"></div></div>
@@ -264,7 +261,7 @@ function mentionCard(m) {
       <span class="mention-badge">${badge(m.label)}<small data-tip="Neg ${pct(m.probabilities.negative)} · Neu ${pct(m.probabilities.neutral)} · Pos ${pct(m.probabilities.positive)}">${pct(m.confidence)}</small></span></div>
     <p class="mention-text">${m.title ? `<b>${esc(m.title)}</b> ` : ""}${esc(m.title && m.text.startsWith(m.title) ? m.text.slice(m.title.length) : m.text)}</p>
     <div class="mention-actions">
-      ${m.url ? `<a class="btn btn-ghost btn-xs" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${icon("external")}Open original</a>` : ""}
+      ${safeUrl(m.url) ? `<a class="btn btn-ghost btn-xs" href="${esc(safeUrl(m.url))}" target="_blank" rel="noopener noreferrer">${icon("external")}Open original</a>` : ""}
       <button class="btn btn-ghost btn-xs" data-analyze="${esc(m.id)}" data-tip="Open in the Analyzer to see which words drove the prediction">${icon("sparkles")}Explain prediction</button>
     </div></article>`;
 }
@@ -272,10 +269,19 @@ function mentionCard(m) {
 const cssId = (id) => id.replace(/[^a-zA-Z0-9_-]/g, "_");
 
 async function onResultsClick(e) {
+  const retry = e.target.closest("[data-retry]");
+  if (retry) return run(retry.dataset.retry);
   const b = brands.active(); if (!b) return;
-  const tb = e.target.closest("[data-tab]");
-  if (tb) { tab = tb.dataset.tab; return render(); }
   const act = e.target.closest("[data-act]")?.dataset.act;
+  if (act === "report") return b.last && exportReport(b);
+  const ins = e.target.closest("[data-insight]");
+  if (ins) {
+    const f = b.__alerts?.[+ins.dataset.insight]?.filter || {};
+    feed = { filter: f.label || "all", source: f.source || "all", sort: f.sort || "newest", q: (f.q || "").toLowerCase(), page: 1 };
+    $("#feed-search").value = f.q || ""; $("#feed-source").value = feed.source; $("#feed-sort").value = feed.sort;
+    renderFeed();
+    return $("#mon-feed-card").scrollIntoView({ behavior: "smooth" });
+  }
   if (act === "refresh") return run(b.query, b.sources);
   if (act === "export") return b.last && exportCSV(b);
   const f = e.target.closest("[data-ffilter]");
@@ -298,6 +304,34 @@ async function onResultsClick(e) {
   }
   const an = e.target.closest("[data-analyze]");
   if (an) { const m = b.last.mentions.find((x) => x.id === an.dataset.analyze); if (m) onAnalyze(m.text); }
+}
+
+function exportReport(b) {
+  const r = b.last, s = r.summary, n = s.total || 1;
+  const prev = b.runs.length >= 2 ? b.runs.at(-2) : null;
+  const byEng = (label, k) => r.mentions.filter((m) => m.label === label).sort((a, c) => c.engagement - a.engagement || c.confidence - a.confidence).slice(0, k)
+    .map((m) => ({ text: m.text, meta: `${SOURCE_META[m.source].name} · ${m.author || "unknown"} · ${m.ts ? fmtDay(m.ts * 1000) : ""} · ${m.engagement} interactions${m.url ? ` · ${m.url}` : ""}` }));
+  const okSources = r.sources.filter((x) => x.ok).map((x) => `${x.name} (${x.count - (x.filtered || 0)})`).join(", ");
+  downloadReport(`${b.query} brand`, {
+    title: `Brand sentiment: ${b.query}`,
+    subtitle: "How people talk about the brand in recent public posts",
+    meta: [["Collected", fmtDate(r.fetched_at)], ["Mentions dated", s.period?.from ? `${fmtDay(s.period.from)} – ${fmtDay(s.period.to)}` : "–"], ["Sources", okSources], ["Sample size", `${fmt(s.total)} mentions${s.filtered_repetitive ? ` (${s.filtered_repetitive} repetitive posts excluded)` : ""}`]],
+    kpis: [{ label: "Mentions analysed", value: fmt(s.total) }, { label: "Net sentiment", value: `${s.net_score > 0 ? "+" : ""}${s.net_score}`, sub: prev ? `previous check: ${prev.net > 0 ? "+" : ""}${prev.net}` : "−100 to +100" },
+      ...LABELS.map((l) => ({ label: cap(l), value: pct(s.counts[l] / n), sub: `${fmt(s.counts[l])} mentions` }))],
+    sections: [
+      { title: "Overall sentiment", html: sentimentBar(s.counts) },
+      { title: "What you should know", html: `<ul>${[...runAlerts(b), ...s.insights].map((a) => `<li>${esc(a.text)}${a.evidence ? ` <span class="sub">(${esc(a.evidence)})</span>` : ""}</li>`).join("")}</ul>` },
+      { title: "Sentiment by source", html: `<table><tr><th>Source</th><th>Mentions</th><th>Positive</th><th>Negative</th><th>Net</th></tr>${Object.values(s.by_source).map((v) => `<tr><td>${esc(v.name)}</td><td>${v.total}</td><td>${pct(v.counts.positive / v.total)}</td><td>${pct(v.counts.negative / v.total)}</td><td>${v.net_score > 0 ? "+" : ""}${v.net_score}</td></tr>`).join("")}</table>` },
+      { title: "What stands out in negative mentions", html: chips(s.keywords.negative.map(([w, c]) => [maskWord(w), c]), "neg") },
+      { title: "What stands out in positive mentions", html: chips(s.keywords.positive.map(([w, c]) => [maskWord(w), c]), "pos") },
+      { title: "Most-engaged negative mentions", html: quotes(byEng("negative", 5)) },
+      { title: "Most-engaged positive mentions", html: quotes(byEng("positive", 3)) },
+    ],
+    methodology: ["Mentions are the most recent public posts containing the search term, fetched from free public APIs/feeds. At most 3 posts per account per source are counted to limit spam.", MODEL_METHOD,
+      "Net sentiment = % positive − % negative. Mentions per day is an estimate from the time span covered by the fetched posts.", "Insights are automated rules applied to the numbers in this report."],
+    limitations: ["This is a sample of recent posts, not complete coverage of all conversations; X/Twitter, Reddit and Instagram are not included.", "Brand names that are also common words can pick up unrelated posts.", "The model can misread sarcasm, long technical comments and headlines."],
+  });
+  toast("Report downloaded", { body: "Open it in a browser; print to save as PDF." });
 }
 
 function exportCSV(b) {

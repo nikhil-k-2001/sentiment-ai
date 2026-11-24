@@ -2,22 +2,27 @@
 
 from __future__ import annotations
 
-import io
+import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .model import MAX_TEXT_CHARS, ModelNotReadyError, model, summarise
+from .model import MAX_TEXT_CHARS, ModelNotReadyError, language_warning, model, summarise
 from .monitor import analyse_brand
 from .preprocess import LABELS
 from .reviews import MAX_REVIEWS, PLATFORMS, ReviewImportError, analyse_reviews, parse_csv, parse_text
 from .sources import SOURCES
+from .tabular import TableError, has_letters, read_csv_bytes
+from .themes import distinctive_terms
+
+log = logging.getLogger("sentimentai")
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
@@ -38,7 +43,8 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="SentimentAI", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="SentimentAI", version="1.1.0", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 @app.middleware("http")
@@ -49,6 +55,20 @@ async def _revalidate_static(request, call_next):
     if request.url.path == "/" or request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-cache"
     return response
+
+
+@app.exception_handler(Exception)
+async def _unexpected(request: Request, exc: Exception):
+    # Log the full error server-side; never send stack traces to the browser.
+    log.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={
+        "detail": "Something went wrong on the server. Please try again; if it keeps happening, try a smaller input.",
+        "code": "internal_error"})
+
+
+@app.exception_handler(TableError)
+async def _bad_table(_, exc: TableError):
+    return JSONResponse(status_code=422, content={"detail": str(exc), "code": "bad_file"})
 
 
 @app.exception_handler(ModelNotReadyError)
@@ -91,7 +111,11 @@ def analyze(req: AnalyzeRequest):
     pred = model.predict_many([text])[0]
     keywords = model.explain(text, pred)
     latency = (time.perf_counter() - t0) * 1000
+    warnings = [w for w in (language_warning(text),) if w]
+    if len(text.split()) <= 3:
+        warnings.append("Very short text gives the model little context, so this prediction is less reliable.")
     return {
+        "warnings": warnings,
         "text": text,
         "label": pred.label,
         "confidence": pred.confidence,
@@ -103,52 +127,75 @@ def analyze(req: AnalyzeRequest):
     }
 
 
-def _pick_column(df: pd.DataFrame, requested: str | None) -> str:
-    if requested:
-        if requested not in df.columns:
-            raise HTTPException(422, f"Column “{requested}” was not found in the file.")
-        return requested
-    lower = {str(c).strip().lower(): c for c in df.columns}
+def _candidate_columns(df: pd.DataFrame) -> list[dict]:
+    """Describe every column so the user can confirm which one holds the text."""
+    out = []
+    for c in df.columns:
+        vals = df[c].str.strip()
+        valid = vals.map(has_letters)
+        avg_len = float(vals[valid].str.len().mean()) if valid.any() else 0.0
+        out.append({"name": str(c), "valid": int(valid.sum()), "empty": int((~valid).sum()),
+                    "avg_length": round(avg_len, 1),
+                    "sample": [v[:160] for v in vals[valid].head(4).tolist()]})
+    return out
+
+
+def _detect_column(df: pd.DataFrame, cols: list[dict]) -> str | None:
+    lower = {str(c).strip().lower().replace(" ", "_"): str(c) for c in df.columns}
     for hint in TEXT_COLUMN_HINTS:
-        if hint in lower:
+        if hint in lower and next(x for x in cols if x["name"] == lower[hint])["valid"]:
             return lower[hint]
-    text_cols = [c for c in df.columns if df[c].dtype == object]
-    if not text_cols:
-        raise HTTPException(422, "No text column found. Make sure the CSV has a column of text.")
-    return max(text_cols, key=lambda c: df[c].astype(str).str.len().mean())
+    # Otherwise: the column with the longest average text among those with text.
+    texty = [c for c in cols if c["valid"] and c["avg_length"] >= 3]
+    return max(texty, key=lambda c: (c["avg_length"], c["valid"]))["name"] if texty else None
+
+
+async def _read_upload(file: UploadFile) -> pd.DataFrame:
+    name = (file.filename or "").lower()
+    if not name.endswith((".csv", ".txt", ".tsv")):
+        raise HTTPException(422, "Please upload a .csv file (spreadsheets: File → Save as → CSV).")
+    raw = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File is larger than 4 MB. Split it into smaller files.")
+    return read_csv_bytes(raw)
+
+
+@app.post("/api/batch/preview")
+async def batch_preview(file: UploadFile = File(...)):
+    """Inspect a CSV before analysing it: columns, detected text column, samples, counts."""
+    df = await _read_upload(file)
+    cols = _candidate_columns(df)
+    detected = _detect_column(df, cols)
+    if detected is None:
+        raise HTTPException(422, "No column with text was found. The file needs at least one column of written feedback.")
+    return {"filename": file.filename, "total_rows": len(df), "max_rows": MAX_BATCH_ROWS,
+            "truncated": len(df) > MAX_BATCH_ROWS, "detected_column": detected, "columns": cols}
+
+
+def _batch_themes(rows: list[dict]) -> dict:
+    texts = {lbl: [r["text"] for r in rows if r["label"] == lbl] for lbl in LABELS}
+    rest = lambda lbl: [r["text"] for r in rows if r["label"] != lbl]  # noqa: E731
+    return {lbl: distinctive_terms(texts[lbl], rest(lbl), n=10) for lbl in ("negative", "positive")}
 
 
 @app.post("/api/batch")
 async def batch(file: UploadFile = File(...), column: str | None = Form(None)):
-    name = (file.filename or "").lower()
-    if not name.endswith((".csv", ".txt")):
-        raise HTTPException(422, "Please upload a .csv file.")
-    raw = await file.read(MAX_UPLOAD_BYTES + 1)
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "File is larger than 4 MB.")
-    if not raw.strip():
-        raise HTTPException(422, "The uploaded file is empty.")
-
-    df = None
-    for enc in ("utf-8-sig", "latin-1"):
-        try:
-            df = pd.read_csv(io.BytesIO(raw), encoding=enc, dtype=str, keep_default_na=False,
-                             on_bad_lines="skip", engine="python")
-            break
-        except UnicodeDecodeError:
-            continue
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(422, f"Could not parse the CSV file: {exc}") from exc
-    if df is None or df.empty or len(df.columns) == 0:
-        raise HTTPException(422, "The CSV file has no rows.")
-
-    col = _pick_column(df, column)
-    texts = df[col].astype(str).str.strip()
+    df = await _read_upload(file)
+    cols = _candidate_columns(df)
+    if column:
+        if column not in df.columns:
+            raise HTTPException(422, f"Column \u201c{column}\u201d was not found in the file.")
+        col = column
+    else:
+        col = _detect_column(df, cols)
+        if col is None:
+            raise HTTPException(422, "No column with text was found. The file needs at least one column of written feedback.")
+    texts = df[col].str.strip()
     total_rows = len(texts)
     truncated = total_rows > MAX_BATCH_ROWS
     texts = texts.iloc[:MAX_BATCH_ROWS]
 
-    valid_mask = texts.map(lambda t: bool(t) and any(ch.isalpha() for ch in t))
+    valid_mask = texts.map(has_letters)
     valid = texts[valid_mask]
     preds = model.predict_many([t[:MAX_TEXT_CHARS] for t in valid.tolist()])
 
@@ -173,6 +220,7 @@ async def batch(file: UploadFile = File(...), column: str | None = Form(None)):
             "max_rows": MAX_BATCH_ROWS,
             "counts": counts,
             "avg_confidence": round(sum(r["confidence"] for r in rows) / len(rows), 4) if rows else None,
+            "themes": _batch_themes(rows),
         },
     }
 
@@ -265,7 +313,10 @@ def reviews_analyze(req: ReviewsRequest):
     for r in data:
         if r["platform"] not in PLATFORMS:
             r["platform"] = "other"
-    return analyse_reviews(data)
+    result = analyse_reviews(data)
+    if not result["reviews"]:
+        raise HTTPException(422, "None of these reviews contain any text to analyse.")
+    return result
 
 
 # --------------------------------------------------------------- frontend

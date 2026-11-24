@@ -2,17 +2,19 @@
 import { api } from "./api.js";
 import { analyzer, mountAnalyzer } from "./analyzer.js";
 import { initAnalytics, renderAnalytics, renderDashboard, renderHistoryPanel } from "./analytics.js";
-import { initBatch, setBatchEnabled } from "./batch.js";
+import { initBatch, loadSample as loadBatchSample, setBatchEnabled } from "./batch.js";
 import { brands } from "./brands.js";
-import { initCompare, setCompareReady } from "./compare.js";
-import { initMonitor, render as renderMonitor, setMonitorReady } from "./monitor.js";
+import { initCompare, runPreset, setCompareReady } from "./compare.js";
+import { initEmployees, render as renderEmployees, trySample as tryEmployeeSample } from "./employees.js";
+import { initMonitor, render as renderMonitor, run as runMonitor, setMonitorReady } from "./monitor.js";
 import { renderModel } from "./modelinfo.js";
+import { initOverview, renderOverview } from "./overview.js";
 import { history } from "./store.js";
-import { $, $$, hydrateIcons, initTooltips, pct, toast } from "./utils.js";
+import { $, $$, hydrateIcons, initTooltips, toast } from "./utils.js";
 
 const ROUTES = {
-  dashboard: "Dashboard", analyze: "Sentiment Analyzer", batch: "Batch Analysis", analytics: "Analytics",
-  monitor: "Brand Monitor", compare: "Compare Brands", model: "Model Information",
+  dashboard: "Overview", monitor: "Brand Monitoring", compare: "Compare Brands", batch: "Customer Feedback",
+  employees: "Employee Insights", analyze: "Text Analyzer", analytics: "History & Usage", model: "About & Methodology",
 };
 let route = "dashboard";
 let metrics = null, metricsError = null;
@@ -25,20 +27,35 @@ function setTheme(t) {
 $("#theme-btn").addEventListener("click", () => {
   const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   setTheme(next);
+  $("#theme-btn").setAttribute("aria-label", next === "dark" ? "Switch to light mode" : "Switch to dark mode");
 });
 
 /* --------------------------------------------------------------- sidebar */
 const sidebar = $("#sidebar"), scrim = $("#scrim");
-const closeNav = () => { sidebar.classList.remove("open"); scrim.hidden = true; };
-$("#menu-btn").addEventListener("click", () => { sidebar.classList.add("open"); scrim.hidden = false; });
+const closeNav = () => { sidebar.classList.remove("open"); scrim.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); };
+$("#menu-btn").addEventListener("click", () => {
+  sidebar.classList.add("open"); scrim.hidden = false; $("#menu-btn").setAttribute("aria-expanded", "true");
+  sidebar.querySelector(".nav-link")?.focus();
+});
 scrim.addEventListener("click", closeNav);
+addEventListener("keydown", (e) => { if (e.key === "Escape" && sidebar.classList.contains("open")) { closeNav(); $("#menu-btn").focus(); } });
+
+// Clickable non-button elements (chips, table rows) behave like buttons on the keyboard.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const el = e.target;
+  if (el.matches?.('[role="button"][tabindex], .brand-chip[tabindex]') && el.tagName !== "BUTTON") { e.preventDefault(); el.click(); }
+});
 
 /* ---------------------------------------------------------------- router */
 function go() {
   const name = (location.hash.replace(/^#\/?/, "") || "dashboard").split("?")[0];
   route = ROUTES[name] ? name : "dashboard";
   $$(".view").forEach((v) => (v.hidden = v.dataset.view !== route));
-  $$(".nav-link[data-route]").forEach((a) => a.classList.toggle("active", a.dataset.route === route));
+  $$(".nav-link[data-route]").forEach((a) => {
+    a.classList.toggle("active", a.dataset.route === route);
+    if (a.dataset.route === route) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
   $("#crumb-page").textContent = ROUTES[route];
   document.title = `${ROUTES[route]} · SentimentAI`;
   const slot = $(`.slot[data-slot="${route}"]`);
@@ -46,23 +63,29 @@ function go() {
   closeNav();
   renderRoute();
   window.scrollTo({ top: 0 });
+  // Move focus to the page heading for screen-reader and keyboard users.
+  const h = $(`.view[data-view="${route}"] h1`);
+  if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
 }
 
 function renderRoute() {
-  if (route === "dashboard") renderDashboard();
+  if (route === "dashboard") { renderOverview(); renderDashboard(); }
   if (route === "analyze") renderHistoryPanel(analyzer.currentId);
   if (route === "analytics") renderAnalytics();
   if (route === "model") renderModel(metrics, metricsError);
   if (route === "monitor") renderMonitor();
+  if (route === "employees") renderEmployees();
 }
 
 function openEntry(id) {
   const e = history.get(id);
   if (!e) return;
   analyzer.show(e);
-  if (route !== "analyze" && route !== "dashboard") location.hash = "#/analyze";
+  if (route !== "analyze") location.hash = "#/analyze";
   else requestAnimationFrame(() => analyzer.node.querySelector("#az-result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
 }
+
+const analyzeText = (text) => { location.hash = "#/analyze"; analyzer.analyze(text); };
 
 /* ----------------------------------------------------------- model status */
 async function checkModel() {
@@ -76,7 +99,6 @@ async function checkModel() {
     }
     metrics = await api.model();
     window.__modelName = metrics.model.name;
-    $("#hero-eyebrow span").textContent = `TF-IDF + Logistic Regression · ${pct(metrics.test.accuracy, 1)} test accuracy`;
     setReady(true);
   } catch (err) {
     metricsError = err.message;
@@ -94,12 +116,24 @@ initTooltips();
 mountAnalyzer();
 initBatch();
 initAnalytics({ onOpen: openEntry });
-initMonitor({ analyze: (text) => { location.hash = "#/analyze"; analyzer.analyze(text); } });
-initCompare({ onTrack: (q) => { const b = brands.get(q.toLowerCase()); if (b) brands.setActive(b.key); location.hash = "#/monitor"; if (!b) import("./monitor.js").then((m) => m.run(q)); } });
-brands.subscribe(() => route === "monitor" && renderMonitor());
+initMonitor({ analyze: analyzeText });
+initEmployees({ analyze: analyzeText });
+initCompare({ onTrack: (q) => { const b = brands.get(q.toLowerCase()); if (b) brands.setActive(b.key); location.hash = "#/monitor"; if (!b) runMonitor(q); } });
+initOverview({
+  text: analyzeText,
+  monitor: () => { location.hash = "#/monitor"; runMonitor("Spotify"); },
+  batch: () => { location.hash = "#/batch"; loadBatchSample(); },
+  compare: () => { location.hash = "#/compare"; runPreset(1); },
+  employees: () => { location.hash = "#/employees"; tryEmployeeSample(); },
+});
+brands.subscribe(() => {
+  if (route === "monitor") renderMonitor();
+  if (route === "employees") renderEmployees();
+  if (route === "dashboard") renderOverview();
+});
 history.subscribe(() => renderRoute());
 analyzer.onChange(() => route === "analyze" && renderHistoryPanel(analyzer.currentId));
 addEventListener("hashchange", go);
-addEventListener("storage", (e) => { if (e.key?.startsWith("sentimentai.history")) location.reload(); });
+addEventListener("storage", (e) => { if (e.key?.startsWith("sentimentai.")) location.reload(); });
 go();
 checkModel();

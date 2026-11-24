@@ -15,6 +15,10 @@ export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 export function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+/** Only allow http(s) links (defence in depth against javascript: URLs). */
+export function safeUrl(u) {
+  return typeof u === "string" && /^https?:\/\//i.test(u.trim()) ? u.trim() : null;
+}
 export const pct = (x, d = 0) => `${(x * 100).toFixed(d)}%`;
 export const fmt = (n) => new Intl.NumberFormat().format(n);
 export const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);

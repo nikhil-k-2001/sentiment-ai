@@ -64,8 +64,11 @@ function updateCount() {
   const n = input.value.length;
   countEl.textContent = `${n.toLocaleString()} / ${MAX.toLocaleString()}`;
   countEl.className = `count${n > MAX ? " over" : n > MAX * 0.9 ? " warn" : ""}`;
-  runBtn.disabled = busy || !modelReady;
-  runBtn.dataset.tip = modelReady ? "" : "Train the model first — see the banner above";
+  const empty = !input.value.trim();
+  runBtn.disabled = busy || !modelReady || empty || n > MAX;
+  runBtn.dataset.tip = !modelReady ? "Train the model first — see the banner above"
+    : empty ? "Enter some text first" : n > MAX ? `Shorten the text to ${MAX.toLocaleString()} characters` : "";
+  if (n > MAX) countEl.textContent += ` — ${(n - MAX).toLocaleString()} over the limit`;
 }
 
 function showError(msg) { errEl.textContent = msg; errEl.hidden = false; }
@@ -156,8 +159,9 @@ function renderReport(e) {
       <section class="verdict">
         <span class="verdict-kicker">Predicted sentiment</span>
         <div class="verdict-label">${icon(FACE[e.label], "face")}${cap(e.label)}</div>
-        ${gauge(e.confidence, tone)}
+        <div data-tip="Confidence is the model's estimated probability for this class. It shows how sure the model is, not a guarantee that it's right.">${gauge(e.confidence, tone)}</div>
         <span class="strength">${strength(e.confidence)}</span>
+        ${e.warnings?.length ? `<div class="az-warn" role="note">${e.warnings.map((w) => `<p>${icon("alert")}<span>${esc(w)}</span></p>`).join("")}</div>` : ""}
       </section>
       <section class="report-main">
         <div>

@@ -16,7 +16,7 @@ SAMPLES = Path(__file__).resolve().parents[1] / "web" / "samples"
 
 @pytest.mark.parametrize("raw,expected", [
     ("4", 4.0), ("4.5", 4.5), ("3/5", 3.0), ("8/10", 4.0), ("★★★", 3.0), ("4.0 ★", 4.0),
-    ("", None), ("nan", None), ("great", None), ("0", None), ("7", 3.5),
+    ("", None), ("nan", None), ("great", None), ("0", None), ("7", None), ("9/5", None), ("4 out of 5", 4.0), ("80/100", 4.0),
 ])
 def test_parse_rating(raw, expected):
     assert parse_rating(raw) == expected

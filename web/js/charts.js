@@ -54,7 +54,8 @@ export function donut(el, counts, { center = "Analysed" } = {}) {
 function buckets(entries) {
   const now = Date.now();
   const oldest = Math.min(...entries.map((e) => e.ts));
-  const hourly = now - oldest < 36 * 3600e3;
+  // Hourly view only when everything fits in the 24 hourly buckets shown.
+  const hourly = now - oldest < 23 * 3600e3;
   const size = hourly ? 3600e3 : 86400e3;
   const floor = (t) => {
     const d = new Date(t);

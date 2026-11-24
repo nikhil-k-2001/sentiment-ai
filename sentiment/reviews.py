@@ -21,6 +21,7 @@ import pandas as pd
 
 from .model import model
 from .preprocess import LABELS
+from .tabular import TableError, read_csv_bytes
 
 PLATFORMS = {
     "glassdoor": "Glassdoor",
@@ -47,6 +48,7 @@ COLUMN_HINTS = {
 _KEY_LINE = re.compile(r"^\s*(pros|likes?|what i like|cons|dislikes?|what i dislike|rating|title|role|job title|designation|date)\s*[:\-]\s*(.*)$", re.I)
 _STARS = re.compile(r"[★⭐]")
 _NUM = re.compile(r"(\d+(?:\.\d+)?)")
+_FRACTION = re.compile(r"(\d+(?:\.\d+)?)\s*(?:/|out of)\s*(\d+(?:\.\d+)?)", re.I)
 
 _TOKEN = re.compile(r"[a-z][a-z'&-]{1,}")
 _STOP = frozenset("""
@@ -88,20 +90,31 @@ def _detect_columns(columns: list[str]) -> dict[str, str]:
 
 
 def parse_rating(value) -> float | None:
+    """Normalise a rating to the 1–5 scale; None if missing or invalid.
+
+    Accepts 4, 4.5, "4/5", "8/10", "4 out of 5", "★★★★" and "4.0 ★".
+    Values outside their scale (e.g. "9/5", "0", "7") are rejected rather
+    than guessed.
+    """
     if value is None:
         return None
     s = str(value).strip()
-    if not s or s.lower() in {"nan", "none", "na", "n/a"}:
+    if not s or s.lower() in {"nan", "none", "na", "n/a", "-"}:
         return None
+    frac = _FRACTION.search(s)
+    if frac:
+        num, den = float(frac.group(1)), float(frac.group(2))
+        if den not in (5, 10, 100) or not 0 < num <= den:
+            return None
+        r = round(num / den * 5, 2)
+        return r if 1 <= r <= 5 else None
     stars = len(_STARS.findall(s))
     if stars and not _NUM.search(s):
-        return float(min(stars, 5))
+        return float(stars) if stars <= 5 else None
     m = _NUM.search(s)
     if not m:
         return None
     r = float(m.group(1))
-    if "/10" in s or (5 < r <= 10):
-        r = r / 2
     return r if 1 <= r <= 5 else None
 
 
@@ -139,18 +152,10 @@ def _finish(raw: list[dict]) -> list[dict]:
 
 
 def parse_csv(raw: bytes) -> tuple[list[dict], dict, int]:
-    df = None
-    for enc in ("utf-8-sig", "latin-1"):
-        try:
-            df = pd.read_csv(io.BytesIO(raw), encoding=enc, dtype=str, keep_default_na=False,
-                             on_bad_lines="skip", engine="python")
-            break
-        except UnicodeDecodeError:
-            continue
-        except Exception as exc:  # noqa: BLE001
-            raise ReviewImportError(f"Could not read the CSV file: {exc}") from exc
-    if df is None or df.empty:
-        raise ReviewImportError("The CSV file has no rows.")
+    try:
+        df = read_csv_bytes(raw)
+    except TableError as exc:
+        raise ReviewImportError(str(exc)) from exc
     mapping = _detect_columns(list(df.columns))
     if not {"pros", "cons", "text", "title"} & mapping.keys():
         raise ReviewImportError(
@@ -230,8 +235,12 @@ def _themes(texts: list[str], n: int = 12) -> list[tuple[str, int]]:
     return sorted(chosen, key=lambda x: -x[1])[:n]
 
 
+def has_text(r: dict) -> bool:
+    return any(r.get(k) and re.search(r"[A-Za-z]", r[k]) for k in ("title", "text", "pros", "cons"))
+
+
 def analyse_reviews(reviews: list[dict]) -> dict:
-    reviews = reviews[:MAX_REVIEWS]
+    reviews = [r for r in reviews[:MAX_REVIEWS] if has_text(r)]
     overall = model.predict_many([_overall_text(r) for r in reviews]) if reviews else []
     pros_idx = [i for i, r in enumerate(reviews) if r.get("pros")]
     cons_idx = [i for i, r in enumerate(reviews) if r.get("cons")]

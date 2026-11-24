@@ -1,6 +1,6 @@
 // "About / Model Information" view — rendered entirely from models/metrics.json
 // (served by GET /api/model). No numbers are hard-coded here.
-import { $, COLORS, cap, esc, fmt, icon, pct } from "./utils.js";
+import { $, COLORS, cap, confirmDialog, esc, fmt, icon, pct, toast } from "./utils.js";
 import { animateIn } from "./charts.js";
 
 let testSel = "combined";
@@ -8,7 +8,7 @@ let testSel = "combined";
 export function renderModel(m, error) {
   const root = $("#model-root");
   if (!m) {
-    root.innerHTML = `<div class="page-head"><div><h1>Model Information</h1><p>Details about the trained classifier.</p></div></div>
+    root.innerHTML = `<div class="page-head"><div><h1>About &amp; Methodology</h1><p>Details about the trained classifier.</p></div></div>
       <div class="card empty"><div class="empty-art">${icon("cpu")}</div><h3>No trained model available</h3>
       <p>${esc(error || "Train the model to see real evaluation metrics.")}</p>
       <p>Run <code>python scripts/download_data.py</code> and <code>python scripts/train.py</code>, then restart the server.</p></div>`;
@@ -45,8 +45,8 @@ export function renderModel(m, error) {
 
   root.innerHTML = `
   <div class="model-hero">
-    <div><h1>Model Information</h1>
-      <p>A classical NLP pipeline — TF-IDF features and multinomial logistic regression — trained on ~75k real labelled tweets from two datasets and evaluated on held-out test sets the model never saw during training or model selection.</p>
+    <div><h1>About &amp; Methodology</h1>
+      <p>How SentimentAI decides whether text is positive, negative or neutral, how accurate that is, and where your data goes. A classical NLP pipeline — TF-IDF features and multinomial logistic regression — trained on ~75k real labelled tweets from two datasets and evaluated on held-out test sets the model never saw during training or model selection.</p>
       <div class="tag-row"><span class="badge plain">${esc(m.model.name)}</span><span class="badge plain">scikit-learn ${esc(tr.sklearn_version)}</span><span class="badge plain">Trained ${esc(trained)}</span></div>
     </div>
   </div>
@@ -120,9 +120,31 @@ export function renderModel(m, error) {
         <li>Predictions describe the text, not the author’s true intent.</li>
       </ul>
     </div>`;
+  root.insertAdjacentHTML("beforeend", privacyHTML());
+  root.querySelector("#clear-local")?.addEventListener("click", clearLocal);
   animateIn(root);
   $("#test-switch")?.addEventListener("click", (e) => {
     const b = e.target.closest("[data-test]"); if (!b) return;
     testSel = b.dataset.test; renderModel(m, error);
   });
+}
+
+function privacyHTML() {
+  return `<div class="card" style="margin-top:18px" id="privacy"><div class="card-head"><h3>${icon("shield")} Your data &amp; privacy</h3></div>
+    <ul class="limits">
+      <li><b>No accounts, no database.</b> Your history, tracked brands and imported reviews are saved only in this browser (localStorage). Other people using the app can't see them, and they aren't synced between devices.</li>
+      <li><b>Text you analyse is processed in memory</b> by this app's own server and model, and not stored there. No third-party AI service is called.</li>
+      <li><b>Brand Monitoring</b> reads public posts from Bluesky, Mastodon, Lemmy, Hacker News and Google News. It's a sample of recent posts, not complete coverage.</li>
+      <li><b>Employee reviews</b> are never collected from Glassdoor or AmbitionBox automatically; you import what you collected yourself.</li>
+      <li>This is a demo-grade tool: there is no login, access control or enterprise data retention policy.</li>
+    </ul>
+    <div class="row-gap" style="margin-top:14px"><button class="btn btn-danger-ghost btn-sm" id="clear-local">${icon("trash")}Clear all data saved in this browser</button></div></div>`;
+}
+
+async function clearLocal() {
+  const ok = await confirmDialog({ title: "Clear all saved data?", body: "This permanently deletes your analysis history, tracked brands, monitoring checks and imported reviews from this browser. It can't be undone.", ok: "Clear everything" });
+  if (!ok) return;
+  try { Object.keys(localStorage).filter((k) => k.startsWith("sentimentai.") && k !== "sentimentai.theme").forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
+  toast("All saved data cleared");
+  setTimeout(() => location.reload(), 600);
 }

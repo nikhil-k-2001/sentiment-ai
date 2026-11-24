@@ -18,6 +18,10 @@ export function initAnalytics({ onOpen }) {
     filter = c.dataset.filter; page = 1; renderTable();
   });
   $("#an-pager").addEventListener("click", (e) => { const b = e.target.closest("[data-page]"); if (b && !b.disabled) { page = +b.dataset.page; renderTable(); } });
+  $("#an-table").addEventListener("keydown", (e) => {
+    const row = e.target.closest("tr[data-open]");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openEntry(row.dataset.open); }
+  });
   $("#an-table").addEventListener("click", (e) => {
     const del = e.target.closest("[data-del]");
     if (del) { e.stopPropagation(); history.remove(del.dataset.del); toast("Entry removed"); return; }
@@ -80,7 +84,8 @@ const emptyChart = (msg) => `<div class="empty compact bare"><div class="empty-a
 /* -------------------------------------------------------------- dashboard */
 export function renderDashboard() {
   const all = history.all(), s = history.stats();
-  $("#dash-stats").innerHTML = statCards(s);
+  // First-time users see the workflows; the activity block appears once there is activity.
+  $("#dash-activity").hidden = !all.length;
   $("#dash-recent").innerHTML = all.length
     ? `<div class="hist-list">${all.slice(0, 6).map(histItem).join("")}</div>`
     : `<div class="empty compact bare"><div class="empty-art">${icon("clock")}</div><h3>No analyses yet</h3><p>Results you analyse will be listed here and kept after refresh.</p></div>`;
@@ -130,7 +135,7 @@ function renderTable() {
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE)); page = Math.min(page, pages);
   $("#an-count").textContent = `${fmt(all.length)} saved`;
   $("#an-table tbody").innerHTML = rows.length ? rows.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((e) => `
-    <tr class="row-btn" data-open="${e.id}" data-tip="Open full report">
+    <tr class="row-btn" data-open="${e.id}" tabindex="0" aria-label="Open report for: ${esc(e.text.slice(0, 60))}">
       <td class="txt"><span>${esc(e.text)}</span></td><td>${badge(e.label)}</td>
       <td class="conf-td">${confCell(e.label, e.confidence)}</td>
       <td><span class="badge plain">${e.source === "batch" ? "Batch" : "Analyzer"}</span></td>
