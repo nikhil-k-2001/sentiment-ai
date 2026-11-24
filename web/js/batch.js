@@ -37,7 +37,7 @@ export function setBatchEnabled(ok) { $("#batch-run").disabled = !ok || busy; }
 
 function pick(f) {
   if (!/\.(csv|txt)$/i.test(f.name)) { toast("Unsupported file", { type: "error", body: "Please choose a .csv file." }); return; }
-  if (f.size > 5 * 1024 * 1024) { toast("File too large", { type: "error", body: "The limit is 5 MB." }); return; }
+  if (f.size > 4 * 1024 * 1024) { toast("File too large", { type: "error", body: "The limit is 4 MB." }); return; }
   if (f.size === 0) { toast("Empty file", { type: "error", body: "The selected file has no content." }); return; }
   file = f; result = null;
   $("#file-name").textContent = f.name;

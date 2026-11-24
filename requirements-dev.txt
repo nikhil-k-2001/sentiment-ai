@@ -1,0 +1,4 @@
+# Everything needed to download data, retrain the model and run the tests.
+-r requirements.txt
+pyarrow==26.0.1
+pytest==9.2.0

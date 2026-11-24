@@ -22,7 +22,8 @@ from .sources import SOURCES
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+# Vercel rejects request bodies over 4.5 MB, so stay safely below that.
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_BATCH_ROWS = 5000
 TEXT_COLUMN_HINTS = (
     "text", "review", "reviews", "review_text", "comment", "comments", "feedback",
@@ -124,7 +125,7 @@ async def batch(file: UploadFile = File(...), column: str | None = Form(None)):
         raise HTTPException(422, "Please upload a .csv file.")
     raw = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "File is larger than 5 MB.")
+        raise HTTPException(413, "File is larger than 4 MB.")
     if not raw.strip():
         raise HTTPException(422, "The uploaded file is empty.")
 
@@ -232,13 +233,13 @@ async def reviews_parse(platform: str = Form("other"), file: UploadFile | None =
                 raise HTTPException(422, "Please upload a .csv file.")
             raw = await file.read(MAX_UPLOAD_BYTES + 1)
             if len(raw) > MAX_UPLOAD_BYTES:
-                raise HTTPException(413, "File is larger than 5 MB.")
+                raise HTTPException(413, "File is larger than 4 MB.")
             if not raw.strip():
                 raise HTTPException(422, "The uploaded file is empty.")
             reviews, mapping, skipped = parse_csv(raw)
         elif text and text.strip():
             if len(text) > MAX_UPLOAD_BYTES:
-                raise HTTPException(413, "Pasted text is too long (5 MB max).")
+                raise HTTPException(413, "Pasted text is too long (4 MB max).")
             reviews, skipped = parse_text(text)
             mapping = None
         else:

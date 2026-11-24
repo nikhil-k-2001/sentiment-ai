@@ -182,7 +182,7 @@ The selection metric is **macro F1**. Only logistic regression is eligible for d
 | `GET` | `/api/health` | `{status, model_ready}` |
 | `GET` | `/api/model` | Contents of `metrics.json` |
 | `POST` | `/api/analyze` | `{"text": "..."}` returns label, confidence, probabilities, keywords, summary |
-| `POST` | `/api/batch` | multipart `file` (CSV ≤ 5 MB, ≤ 5,000 rows) plus optional `column` |
+| `POST` | `/api/batch` | multipart `file` (CSV ≤ 4 MB, ≤ 5,000 rows) plus optional `column` |
 | `GET` | `/api/sources` | Available live sources |
 | `POST` | `/api/monitor` | `{"query": "Spotify", "sources": [...], "limit": 50}` returns scored mentions, summary and insights |
 | `POST` | `/api/reviews/parse` | multipart `platform` (`glassdoor` / `ambitionbox` / `other`) plus a `file` (CSV) or `text` (pasted); returns normalised reviews and the detected column mapping |

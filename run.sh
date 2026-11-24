@@ -14,7 +14,7 @@ fi
 PY=.venv/bin/python
 if ! "$PY" -c "import fastapi, sklearn, pandas, multipart" >/dev/null 2>&1; then
   echo "▸ Installing dependencies"
-  if command -v uv >/dev/null 2>&1; then uv pip install -q --python "$PY" -r requirements.txt; else "$PY" -m pip install -q -r requirements.txt; fi
+  if command -v uv >/dev/null 2>&1; then uv pip install -q --python "$PY" -r requirements-dev.txt; else "$PY" -m pip install -q -r requirements-dev.txt; fi
 fi
 if [ ! -f models/sentiment_model.joblib ] || [ ! -f models/metrics.json ]; then
   echo "▸ No trained model found — downloading data and training"

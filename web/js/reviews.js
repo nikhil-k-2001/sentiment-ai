@@ -56,7 +56,7 @@ export function resetReviewFeed() { feed = { filter: "all", platform: "all", rat
 /* --------------------------------------------------------------- import */
 function pickFile(f) {
   if (!/\.(csv|txt)$/i.test(f.name)) return toast("Unsupported file", { type: "error", body: "Please choose a .csv file." });
-  if (f.size > 5 * 1024 * 1024) return toast("File too large", { type: "error", body: "The limit is 5 MB." });
+  if (f.size > 4 * 1024 * 1024) return toast("File too large", { type: "error", body: "The limit is 4 MB." });
   ui.file = f;
   const dz = $("#rv-drop", root);
   if (dz) { dz.querySelector("strong").innerHTML = `${icon("file")} ${esc(f.name)}`; dz.querySelector("small").textContent = `${(f.size / 1024).toFixed(1)} KB · ready to import`; }
