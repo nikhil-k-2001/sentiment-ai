@@ -5,7 +5,6 @@ import { initAnalytics, renderAnalytics, renderDashboard, renderHistoryPanel } f
 import { initBatch, setBatchEnabled } from "./batch.js";
 import { brands } from "./brands.js";
 import { initCompare, setCompareReady } from "./compare.js";
-import { CONFIG } from "./config.js";
 import { initMonitor, render as renderMonitor, setMonitorReady } from "./monitor.js";
 import { renderModel } from "./modelinfo.js";
 import { history } from "./store.js";
@@ -33,7 +32,6 @@ const sidebar = $("#sidebar"), scrim = $("#scrim");
 const closeNav = () => { sidebar.classList.remove("open"); scrim.hidden = true; };
 $("#menu-btn").addEventListener("click", () => { sidebar.classList.add("open"); scrim.hidden = false; });
 scrim.addEventListener("click", closeNav);
-$("#github-link").href = CONFIG.GITHUB_URL;
 
 /* ---------------------------------------------------------------- router */
 function go() {
@@ -68,13 +66,9 @@ function openEntry(id) {
 
 /* ----------------------------------------------------------- model status */
 async function checkModel() {
-  const pill = $("#model-pill");
   try {
     const h = await api.health();
     if (!h.model_ready) {
-      pill.dataset.state = "missing";
-      $("#model-pill-title").textContent = "Model not trained";
-      $("#model-pill-sub").textContent = "Run scripts/train.py";
       $("#setup-banner").hidden = false;
       metricsError = "The server is running but no trained model was found in models/.";
       setReady(false);
@@ -82,15 +76,9 @@ async function checkModel() {
     }
     metrics = await api.model();
     window.__modelName = metrics.model.name;
-    pill.dataset.state = "ready";
-    $("#model-pill-title").textContent = "Model ready";
-    $("#model-pill-sub").textContent = `${pct(metrics.test.accuracy, 1)} test accuracy`;
     $("#hero-eyebrow span").textContent = `TF-IDF + Logistic Regression · ${pct(metrics.test.accuracy, 1)} test accuracy`;
     setReady(true);
   } catch (err) {
-    pill.dataset.state = "offline";
-    $("#model-pill-title").textContent = "Server offline";
-    $("#model-pill-sub").textContent = "Start it with run.sh";
     metricsError = err.message;
     setReady(false);
     toast("Can't reach the server", { type: "error", body: err.message, ms: 6000 });

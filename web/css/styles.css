@@ -111,14 +111,6 @@ i[data-icon] svg { width: 100%; height: 100%; }
 .nav-link.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .nav-link.active::before { content: ""; position: absolute; left: -14px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
 .nav-ext { margin-left: auto; width: 13px !important; height: 13px !important; opacity: .5; }
-.sidebar-foot { padding-top: 8px; }
-.model-pill { display: flex; gap: 10px; align-items: center; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-.model-pill strong { display: block; font-size: 12.5px; }
-.model-pill small { display: block; font-size: 11.5px; color: var(--muted); }
-.model-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
-.model-pill[data-state="ready"] .dot { background: var(--pos); box-shadow: 0 0 0 4px var(--pos-soft); }
-.model-pill[data-state="missing"] .dot, .model-pill[data-state="offline"] .dot { background: var(--neg); box-shadow: 0 0 0 4px var(--neg-soft); }
-.model-pill[data-state="loading"] .dot { animation: pulse 1.2s infinite; }
 
 .main { flex: 1; min-width: 0; margin-left: var(--sidebar-w); display: flex; flex-direction: column; }
 .topbar {

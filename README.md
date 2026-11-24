@@ -235,7 +235,6 @@ curl -s localhost:8000/api/monitor -H 'Content-Type: application/json' \
 
 ## Configuration
 
-- **GitHub link:** `GITHUB_URL` in `web/js/config.js` (points to this repository).
 - **Port:** run `PORT=9000 ./run.sh`. A busy port is skipped automatically.
 - **No auto-open:** run `NO_BROWSER=1 ./run.sh`.
 
