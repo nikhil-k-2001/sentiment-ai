@@ -9,6 +9,8 @@ media, forums and news.
 
 `Python` · `FastAPI` · `scikit-learn` · `TF-IDF + Logistic Regression` · `httpx` · `Vanilla JS (no build step)` · `SVG charts`
 
+### 🔗 Live demo: **[sentiment-ai-eight-orcin.vercel.app](https://sentiment-ai-eight-orcin.vercel.app)**
+
 ![Brand Monitor](docs/screenshots/brand-monitor.jpg)
 
 </div>
@@ -68,6 +70,19 @@ python scripts/train.py           # → models/sentiment_model.joblib + models/m
 uvicorn sentiment.api:app --port 8000
 ```
 </details>
+
+## Deployment (Vercel)
+
+The live demo runs on Vercel as a single Python function. Vercel detects FastAPI through `app.py`, and every push to `main` redeploys automatically.
+
+- **The model runs inside the function.** There is no external AI API, API key or per-request cost. The 8 MB model loads once per instance in about 1 s, and a prediction takes about 5 ms.
+- **Dependencies are pinned** in `requirements.txt` (scikit-learn 1.9.1 matches the saved model). Training-only packages (`pyarrow`, `pytest`) live in `requirements-dev.txt`, so they aren't installed on the server.
+- `.python-version` selects Python 3.12, and `vercel.json` keeps tests, docs, data and scripts out of the function.
+- **Uploads are capped at 4 MB** because Vercel rejects request bodies over 4.5 MB.
+- Peak memory under the heaviest requests is about 440 MB, well within a Vercel function's default memory.
+- All five Brand Monitor sources work from Vercel's servers.
+
+To deploy your own copy, import the repository at [vercel.com/new](https://vercel.com/new) and keep the default settings. No environment variables are needed.
 
 ## Live data sources
 
