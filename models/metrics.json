@@ -1,0 +1,254 @@
+{
+  "model": {
+    "name": "SentimentAI TF-IDF + Logistic Regression",
+    "selected_candidate": "Logistic Regression C=1 (word + char TF-IDF)",
+    "algorithm": "Multinomial Logistic Regression (class_weight=balanced)",
+    "features": "TF-IDF word 1-2 grams + character 2-5 grams",
+    "vocabulary_size": {
+      "word": 120787,
+      "char": 100000
+    },
+    "total_features": 220787,
+    "classes": [
+      "negative",
+      "neutral",
+      "positive"
+    ]
+  },
+  "dataset": {
+    "name": "Twitter US Airline Sentiment + TweetEval \u2014 sentiment",
+    "raw_rows": 74539,
+    "rows_after_cleaning": 74076,
+    "class_distribution": {
+      "negative": 20436,
+      "neutral": 30406,
+      "positive": 23234
+    },
+    "split": {
+      "train": 55528,
+      "validation": 4135,
+      "test": 14413
+    },
+    "components": {
+      "airline": {
+        "name": "Twitter US Airline Sentiment",
+        "source": "Crowdflower / Kaggle (crowdflower/twitter-airline-sentiment)",
+        "license": "CC BY-NC-SA 4.0",
+        "domain": "Customer-service tweets about six US airlines (Feb 2015)",
+        "split_strategy": "Stratified 70/15/15, random_state=42",
+        "raw_rows": 14640,
+        "split": {
+          "train": 9965,
+          "validation": 2135,
+          "test": 2136
+        },
+        "class_distribution": {
+          "negative": 9065,
+          "neutral": 2962,
+          "positive": 2209
+        }
+      },
+      "tweeteval": {
+        "name": "TweetEval \u2014 sentiment",
+        "source": "Barbieri et al. 2020 / SemEval-2017 Task 4 (cardiffnlp/tweet_eval)",
+        "license": "Research use (see dataset card)",
+        "domain": "General-topic tweets: brands, products, people, events",
+        "split_strategy": "Official train / validation / test splits",
+        "raw_rows": 59899,
+        "split": {
+          "train": 45563,
+          "validation": 2000,
+          "test": 12277
+        },
+        "class_distribution": {
+          "negative": 11371,
+          "neutral": 27444,
+          "positive": 21025
+        }
+      }
+    }
+  },
+  "test": {
+    "accuracy": 0.6574620134600707,
+    "macro_precision": 0.6561137362377226,
+    "macro_recall": 0.6531061354115946,
+    "macro_f1": 0.6515998931603666,
+    "weighted_f1": 0.655177973219841,
+    "per_class": {
+      "negative": {
+        "precision": 0.6416732438831886,
+        "recall": 0.7629504504504504,
+        "f1": 0.6970762239561005,
+        "support": 5328
+      },
+      "neutral": {
+        "precision": 0.6807935076645627,
+        "recall": 0.5917855463238753,
+        "f1": 0.6331767863133176,
+        "support": 6379
+      },
+      "positive": {
+        "precision": 0.6458744571654165,
+        "recall": 0.6045824094604583,
+        "f1": 0.6245466692116817,
+        "support": 2706
+      }
+    },
+    "confusion_matrix": [
+      [
+        4065,
+        1050,
+        213
+      ],
+      [
+        1920,
+        3775,
+        684
+      ],
+      [
+        350,
+        720,
+        1636
+      ]
+    ],
+    "n": 14413
+  },
+  "test_by_dataset": {
+    "airline": {
+      "accuracy": 0.8216292134831461,
+      "macro_precision": 0.7768590984821443,
+      "macro_recall": 0.7483841700229431,
+      "macro_f1": 0.7589412293452001,
+      "weighted_f1": 0.8162812329086832,
+      "per_class": {
+        "negative": {
+          "precision": 0.8633540372670807,
+          "recall": 0.9198529411764705,
+          "f1": 0.8907084371662514,
+          "support": 1360
+        },
+        "neutral": {
+          "precision": 0.7348703170028819,
+          "recall": 0.5730337078651685,
+          "f1": 0.6439393939393939,
+          "support": 445
+        },
+        "positive": {
+          "precision": 0.7323529411764705,
+          "recall": 0.7522658610271903,
+          "f1": 0.7421758569299552,
+          "support": 331
+        }
+      },
+      "confusion_matrix": [
+        [
+          1251,
+          70,
+          39
+        ],
+        [
+          138,
+          255,
+          52
+        ],
+        [
+          60,
+          22,
+          249
+        ]
+      ],
+      "n": 2136
+    },
+    "tweeteval": {
+      "accuracy": 0.6288995682984443,
+      "macro_precision": 0.6285272348279699,
+      "macro_recall": 0.6287883877672317,
+      "macro_f1": 0.6251079748046524,
+      "weighted_f1": 0.6285922981422934,
+      "per_class": {
+        "negative": {
+          "precision": 0.5759312320916905,
+          "recall": 0.7091733870967742,
+          "f1": 0.6356449062570589,
+          "support": 3968
+        },
+        "neutral": {
+          "precision": 0.6771835321277414,
+          "recall": 0.5931917762049208,
+          "f1": 0.6324110671936759,
+          "support": 5934
+        },
+        "positive": {
+          "precision": 0.6324669402644779,
+          "recall": 0.584,
+          "f1": 0.6072679509632224,
+          "support": 2375
+        }
+      },
+      "confusion_matrix": [
+        [
+          2814,
+          980,
+          174
+        ],
+        [
+          1782,
+          3520,
+          632
+        ],
+        [
+          290,
+          698,
+          1387
+        ]
+      ],
+      "n": 12277
+    }
+  },
+  "model_selection": [
+    {
+      "model": "Complement Naive Bayes (word TF-IDF)",
+      "val_accuracy": 0.6969770253929867,
+      "val_macro_f1": 0.675869538818345,
+      "fit_seconds": 1.02,
+      "probabilistic": false
+    },
+    {
+      "model": "Linear SVM (word + char TF-IDF)",
+      "val_accuracy": 0.7528415961305925,
+      "val_macro_f1": 0.7439810666174455,
+      "fit_seconds": 6.31,
+      "probabilistic": false
+    },
+    {
+      "model": "Logistic Regression C=2 (word TF-IDF)",
+      "val_accuracy": 0.743409915356711,
+      "val_macro_f1": 0.7326102618137312,
+      "fit_seconds": 3.18,
+      "probabilistic": true
+    },
+    {
+      "model": "Logistic Regression C=1 (word + char TF-IDF)",
+      "val_accuracy": 0.7513905683192261,
+      "val_macro_f1": 0.7410913956098129,
+      "fit_seconds": 17.08,
+      "probabilistic": true
+    },
+    {
+      "model": "Logistic Regression C=2 (word + char TF-IDF)",
+      "val_accuracy": 0.750906892382104,
+      "val_macro_f1": 0.7409354979882484,
+      "fit_seconds": 14.15,
+      "probabilistic": true
+    }
+  ],
+  "training": {
+    "trained_at": "2026-11-24T08:49:29+00:00",
+    "final_fit_seconds": 14.69,
+    "total_seconds": 59.92,
+    "final_fit_rows": 59663,
+    "sklearn_version": "1.9.1",
+    "python_version": "3.12.16",
+    "random_seed": 42
+  }
+}

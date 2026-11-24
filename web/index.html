@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SentimentAI — Understand What People Feel</title>
+  <meta name="description" content="AI-powered sentiment analysis: positive, negative and neutral classification with confidence scores, batch CSV analysis and analytics." />
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+  <script>
+    try { const t = localStorage.getItem("sentimentai.theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
+  </script>
+</head>
+<body>
+  <div class="app">
+    <!-- ============================== Sidebar ============================== -->
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <a class="brand" href="#/dashboard" aria-label="SentimentAI home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c6cff"/><stop offset="1" stop-color="#4f46e5"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#bm)"/><path d="M8 19c2.2 3 5 4.5 8 4.5s5.8-1.5 8-4.5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="11.5" cy="12.5" r="2" fill="#fff"/><circle cx="20.5" cy="12.5" r="2" fill="#fff"/></svg>
+        </span>
+        <span class="brand-name">Sentiment<span>AI</span></span>
+      </a>
+
+      <nav class="nav">
+        <p class="nav-label">Workspace</p>
+        <a href="#/dashboard" data-route="dashboard" class="nav-link"><i data-icon="dashboard"></i><span>Dashboard</span></a>
+        <a href="#/analyze" data-route="analyze" class="nav-link"><i data-icon="sparkles"></i><span>Sentiment Analyzer</span></a>
+        <a href="#/batch" data-route="batch" class="nav-link"><i data-icon="layers"></i><span>Batch Analysis</span></a>
+        <a href="#/analytics" data-route="analytics" class="nav-link"><i data-icon="chart"></i><span>Analytics</span></a>
+        <p class="nav-label">Listening</p>
+        <a href="#/monitor" data-route="monitor" class="nav-link"><i data-icon="radar"></i><span>Brand Monitor</span><span class="nav-badge">Live</span></a>
+        <a href="#/compare" data-route="compare" class="nav-link"><i data-icon="scale"></i><span>Compare Brands</span></a>
+        <p class="nav-label">Model</p>
+        <a href="#/model" data-route="model" class="nav-link"><i data-icon="cpu"></i><span>About / Model Info</span></a>
+        <a id="github-link" href="#" target="_blank" rel="noopener" class="nav-link"><i data-icon="github"></i><span>GitHub</span><i data-icon="external" class="nav-ext"></i></a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="model-pill" id="model-pill" data-state="loading">
+          <span class="dot"></span>
+          <div><strong id="model-pill-title">Connecting…</strong><small id="model-pill-sub">Checking model status</small></div>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim" hidden></div>
+
+    <!-- ============================== Main ============================== -->
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn only-mobile" id="menu-btn" aria-label="Open navigation"><i data-icon="menu"></i></button>
+        <div class="crumbs"><span class="crumb-root">SentimentAI</span><i data-icon="chevron"></i><span id="crumb-page">Dashboard</span></div>
+        <div class="topbar-actions">
+          <a class="btn btn-ghost btn-sm hide-mobile" href="#/analyze"><i data-icon="plus"></i>New analysis</a>
+          <button class="icon-btn" id="theme-btn" data-tip="Toggle dark mode" data-tip-pos="bottom" aria-label="Toggle dark mode"><i data-icon="moon" class="if-light"></i><i data-icon="sun" class="if-dark"></i></button>
+        </div>
+      </header>
+
+      <div class="setup-banner" id="setup-banner" hidden>
+        <i data-icon="alert"></i>
+        <div>
+          <strong>Model not trained yet.</strong>
+          Predictions are disabled until a real model exists. Run
+          <code>python scripts/download_data.py</code> then <code>python scripts/train.py</code> and restart the server.
+        </div>
+      </div>
+
+      <main class="content" id="content">
+        <!-- ---------- Dashboard ---------- -->
+        <section class="view" data-view="dashboard" hidden>
+          <div class="hero">
+            <div class="hero-bg" aria-hidden="true"></div>
+            <span class="eyebrow" id="hero-eyebrow"><i data-icon="sparkles"></i><span>TF-IDF · Logistic Regression</span></span>
+            <h1>Understand What People Feel.</h1>
+            <p class="lead">Paste a review, support ticket or social post and SentimentAI classifies it as
+              <b class="t-pos">positive</b>, <b class="t-neg">negative</b> or <b class="t-neu">neutral</b> — with calibrated
+              probabilities, the words that drove the decision, and analytics across everything you analyse.</p>
+            <a class="hero-cta" href="#/monitor"><span class="nav-badge">Live</span><span><b>Brand Monitor</b> — see what the internet feels about any brand right now</span><i data-icon="arrow"></i></a>
+          </div>
+          <div class="slot" data-slot="dashboard"></div>
+
+          <div class="section-head">
+            <div><h2>Your activity</h2><p>Stats from analyses saved in this browser — not model evaluation metrics.</p></div>
+            <a class="btn btn-ghost btn-sm" href="#/analytics">Open analytics<i data-icon="arrow"></i></a>
+          </div>
+          <div class="stat-grid" id="dash-stats"></div>
+          <div class="grid-2-1">
+            <div class="card">
+              <div class="card-head"><h3>Recent analyses</h3><a href="#/analytics" class="link-sm">View all</a></div>
+              <div id="dash-recent"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>Sentiment mix</h3><span class="muted-sm">All time</span></div>
+              <div id="dash-donut"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- Analyzer ---------- -->
+        <section class="view" data-view="analyze" hidden>
+          <div class="page-head">
+            <div><h1>Sentiment Analyzer</h1><p>Analyse a single piece of text and get a full model report.</p></div>
+          </div>
+          <div class="analyze-layout">
+            <div class="slot" data-slot="analyze"></div>
+            <aside class="card history-card">
+              <div class="card-head"><h3>History</h3>
+                <button class="btn btn-ghost btn-xs" id="hist-clear" data-tip="Delete all saved analyses"><i data-icon="trash"></i>Clear</button>
+              </div>
+              <div class="search-wrap sm"><i data-icon="search"></i><input id="hist-search" type="search" placeholder="Search history" aria-label="Search history" /></div>
+              <div id="hist-list" class="hist-list"></div>
+            </aside>
+          </div>
+        </section>
+
+        <!-- ---------- Batch ---------- -->
+        <section class="view" data-view="batch" hidden>
+          <div class="page-head">
+            <div><h1>Batch Analysis</h1><p>Upload a CSV with a text column and classify every row at once (up to 5,000 rows, 5 MB).</p></div>
+            <a class="btn btn-ghost btn-sm" href="/static/samples/sample_reviews.csv" download><i data-icon="download"></i>Sample CSV</a>
+          </div>
+
+          <div class="card upload-card">
+            <label class="dropzone" id="dropzone" for="file-input">
+              <input type="file" id="file-input" accept=".csv,text/csv" hidden />
+              <span class="dz-icon"><i data-icon="upload"></i></span>
+              <strong id="dz-title">Drop a CSV file here, or <u>browse</u></strong>
+              <small id="dz-sub">We detect the text column automatically (e.g. <code>text</code>, <code>review</code>, <code>comment</code>).</small>
+            </label>
+            <div class="upload-bar" id="upload-bar" hidden>
+              <div class="file-chip"><i data-icon="file"></i><div><strong id="file-name">file.csv</strong><small id="file-meta"></small></div>
+                <button class="icon-btn sm" id="file-remove" aria-label="Remove file" data-tip="Remove file"><i data-icon="x"></i></button></div>
+              <label class="field-inline" id="column-field" hidden>
+                <span>Text column</span>
+                <select id="column-select" aria-label="Text column"></select>
+              </label>
+              <label class="check" data-tip="Add results to your analytics and history"><input type="checkbox" id="batch-save" checked /><span>Save to history</span></label>
+              <button class="btn btn-primary" id="batch-run"><i data-icon="sparkles"></i><span>Analyze all</span></button>
+            </div>
+          </div>
+
+          <div id="batch-results" hidden>
+            <div class="stat-grid" id="batch-stats"></div>
+            <div class="card">
+              <div class="dist-bar" id="batch-dist"></div>
+              <div class="table-toolbar">
+                <div class="search-wrap"><i data-icon="search"></i><input id="batch-search" type="search" placeholder="Search analysed records…" aria-label="Search records" /></div>
+                <div class="chips" id="batch-filter" role="tablist" aria-label="Filter by sentiment"></div>
+                <button class="btn btn-secondary btn-sm" id="batch-download"><i data-icon="download"></i>Download CSV</button>
+              </div>
+              <div class="table-wrap"><table class="table" id="batch-table">
+                <thead><tr><th class="num">#</th><th>Text</th><th>Sentiment</th><th class="conf-col">Confidence</th></tr></thead>
+                <tbody></tbody></table></div>
+              <div class="pager" id="batch-pager"></div>
+            </div>
+          </div>
+          <div class="empty card" id="batch-empty">
+            <div class="empty-art"><i data-icon="layers"></i></div>
+            <h3>No batch results yet</h3>
+            <p>Upload a CSV above — or grab the sample file to see how it works.</p>
+          </div>
+        </section>
+
+        <!-- ---------- Analytics ---------- -->
+        <section class="view" data-view="analytics" hidden>
+          <div class="page-head">
+            <div><h1>Analytics</h1><p>Live statistics from every analysis saved in this browser.</p></div>
+            <div class="row-gap">
+              <button class="btn btn-ghost btn-sm" id="an-export"><i data-icon="download"></i>Export history</button>
+              <button class="btn btn-danger-ghost btn-sm" id="an-clear"><i data-icon="trash"></i>Clear history</button>
+            </div>
+          </div>
+          <div class="notice"><i data-icon="info"></i><span><b>Usage statistics</b>, not model accuracy. These numbers describe <em>predictions made on your inputs</em>. Evaluation metrics from the held-out test set live on <a href="#/model">Model Info</a>.</span></div>
+          <div class="stat-grid five" id="an-stats"></div>
+          <div class="grid-1-2">
+            <div class="card"><div class="card-head"><h3>Sentiment distribution</h3></div><div id="an-donut"></div></div>
+            <div class="card"><div class="card-head"><h3>Sentiment trend</h3><span class="muted-sm" id="an-trend-sub"></span></div><div id="an-trend"></div></div>
+          </div>
+          <div class="grid-1-2">
+            <div class="card"><div class="card-head"><h3>Average confidence</h3><span class="muted-sm">by predicted class</span></div><div id="an-conf"></div></div>
+            <div class="card"><div class="card-head"><h3>Confidence spread</h3><span class="muted-sm">how sure the model was</span></div><div id="an-hist"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Analysis history</h3><span class="muted-sm" id="an-count"></span></div>
+            <div class="table-toolbar">
+              <div class="search-wrap"><i data-icon="search"></i><input id="an-search" type="search" placeholder="Search history…" aria-label="Search history" /></div>
+              <div class="chips" id="an-filter"></div>
+            </div>
+            <div class="table-wrap"><table class="table" id="an-table">
+              <thead><tr><th>Text</th><th>Sentiment</th><th class="conf-col">Confidence</th><th>Source</th><th>When</th><th></th></tr></thead>
+              <tbody></tbody></table></div>
+            <div class="pager" id="an-pager"></div>
+          </div>
+        </section>
+
+        <!-- ---------- Brand Monitor ---------- -->
+        <section class="view" data-view="monitor" hidden>
+          <div class="page-head">
+            <div><h1>Brand Monitor</h1><p>Track what people are saying about any brand right now, across social media, forums and news.</p></div>
+          </div>
+          <form class="card monitor-search" id="mon-form" autocomplete="off">
+            <div class="mon-input">
+              <i data-icon="search"></i>
+              <input id="mon-query" type="text" maxlength="60" placeholder="Brand, product or keyword, e.g. Spotify" aria-label="Brand to track" />
+              <select id="mon-limit" aria-label="Mentions per source" data-tip="Maximum mentions fetched from each source">
+                <option value="25">25 / source</option><option value="50" selected>50 / source</option><option value="100">100 / source</option>
+              </select>
+              <button class="btn btn-primary btn-lg" id="mon-run" type="submit"><i data-icon="radar"></i><span>Track brand</span></button>
+            </div>
+            <div class="mon-sources-row"><span class="muted-sm">Sources:</span><div class="chips" id="mon-sources"></div></div>
+          </form>
+          <div class="mon-brands-wrap" id="mon-brands-wrap" hidden><span class="muted-sm">Tracked:</span><div class="brand-chips" id="mon-brands"></div></div>
+          <div class="card empty" id="mon-empty">
+            <div class="empty-art"><i data-icon="radar"></i></div>
+            <h3>Start listening</h3>
+            <p>Type a brand above. SentimentAI fetches recent public mentions from Bluesky, Mastodon, Lemmy, Hacker News and Google News, then scores each one with the sentiment model.</p>
+            <div class="chips" id="mon-examples" style="justify-content:center;margin-top:8px"></div>
+            <div class="empty-or"><span>or</span></div>
+            <p>Analyse <b>employee reviews</b> from Glassdoor or AmbitionBox: track a company above and open its “Employee reviews” tab, or</p>
+            <button class="btn btn-secondary btn-sm" id="mon-load-samples"><i data-icon="users"></i>Load sample employee reviews</button>
+          </div>
+          <div id="mon-head" hidden></div>
+          <div id="mon-results" hidden></div>
+          <div id="mon-reviews" hidden></div>
+        </section>
+
+        <!-- ---------- Compare ---------- -->
+        <section class="view" data-view="compare" hidden>
+          <div class="page-head">
+            <div><h1>Compare Brands</h1><p>Put up to three competitors side by side: share of voice, net sentiment and what drives complaints.</p></div>
+          </div>
+          <form class="card cmp-form" id="cmp-form" autocomplete="off">
+            <div class="cmp-inputs">
+              <label class="cmp-field" style="--bc:#5b4cf5"><span class="sw"></span><input id="cmp-a" maxlength="60" placeholder="Brand A" aria-label="Brand A" /></label>
+              <span class="vs">vs</span>
+              <label class="cmp-field" style="--bc:#0ea5e9"><span class="sw"></span><input id="cmp-b" maxlength="60" placeholder="Brand B" aria-label="Brand B" /></label>
+              <span class="vs">vs</span>
+              <label class="cmp-field" style="--bc:#f97316"><span class="sw"></span><input id="cmp-c" maxlength="60" placeholder="Brand C (optional)" aria-label="Brand C" /></label>
+              <button class="btn btn-primary btn-lg" id="cmp-run" type="submit"><i data-icon="scale"></i><span>Compare</span></button>
+            </div>
+            <div class="mon-sources-row"><span class="muted-sm">Try:</span><div class="chips" id="cmp-presets"></div></div>
+          </form>
+          <div class="card empty" id="cmp-empty">
+            <div class="empty-art"><i data-icon="scale"></i></div>
+            <h3>No comparison yet</h3>
+            <p>Enter two or three brands, or pick a preset above. Each brand is monitored across all five sources.</p>
+          </div>
+          <div id="cmp-results" hidden></div>
+        </section>
+
+        <!-- ---------- Model ---------- -->
+        <section class="view" data-view="model" hidden>
+          <div id="model-root"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Shared analyzer component (moved between Dashboard and Analyzer views) -->
+  <template id="analyzer-template">
+    <div class="analyzer">
+      <div class="card composer">
+        <div class="composer-head">
+          <label for="az-input" class="composer-title"><i data-icon="edit"></i>Text to analyse</label>
+          <span class="kbd-hint hide-mobile"><kbd id="kbd-mod">Ctrl</kbd><kbd>Enter</kbd> to analyse</span>
+        </div>
+        <textarea id="az-input" rows="5" maxlength="5000" placeholder="e.g. “The checkout was quick and the support team sorted my issue in minutes. Really impressed!”"></textarea>
+        <div class="composer-samples">
+          <span class="muted-sm">Try a sample:</span>
+          <div class="chips" id="az-samples"></div>
+          <button class="chip chip-accent" id="az-random" data-tip="Insert a random sample review"><i data-icon="wand"></i>Surprise me</button>
+        </div>
+        <div class="composer-foot">
+          <span class="count" id="az-count" data-tip="Maximum 5,000 characters">0 / 5,000</span>
+          <div class="row-gap">
+            <button class="btn btn-ghost" id="az-clear"><i data-icon="x"></i>Clear</button>
+            <button class="btn btn-primary btn-lg" id="az-run"><i data-icon="sparkles"></i><span>Analyze sentiment</span></button>
+          </div>
+        </div>
+        <p class="field-error" id="az-error" hidden></p>
+      </div>
+      <div class="result-area" id="az-result"></div>
+    </div>
+  </template>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div class="modal-backdrop" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-icon"><i data-icon="trash"></i></div>
+      <h3 id="modal-title">Are you sure?</h3>
+      <p id="modal-body"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+        <button class="btn btn-danger" id="modal-ok">Delete</button>
+      </div>
+    </div>
+  </div>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
